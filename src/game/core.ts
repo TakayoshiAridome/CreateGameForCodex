@@ -3,6 +3,8 @@ type Point = { x: number; y: number };
 type Weapon = "sword" | "rifle" | "staff" | "scout";
 type SkillKey = "e" | "r" | "t" | "y";
 type AreaId = "town" | "field" | "dungeon";
+type ShopId = "weapon" | "armor" | "item" | "inn";
+type ConsumableId = "potion";
 
 type Skill = {
   key: SkillKey;
@@ -23,10 +25,25 @@ type EquipmentBonus = {
 };
 
 type Equipment = {
+  id: string;
   slot: EquipmentSlot;
   name: string;
   level: number;
+  price: number;
   bonus: EquipmentBonus;
+};
+
+type ConsumableItem = {
+  id: ConsumableId;
+  name: string;
+  description: string;
+  price: number;
+  healHp: number;
+};
+
+type ConsumableStack = {
+  item: ConsumableItem;
+  count: number;
 };
 
 type Hero = Point & {
@@ -80,6 +97,13 @@ type AreaDefinition = {
   enemyScale: number;
 };
 
+type ShopDefinition = {
+  id: ShopId;
+  name: string;
+  description: string;
+  cost: number;
+};
+
 type GameState = {
   view: { w: number; h: number };
   selected: number;
@@ -87,6 +111,7 @@ type GameState = {
   area: AreaId;
   formation: number;
   score: number;
+  gold: number;
   last: number;
   spawnTimer: number;
   bossTimer: number;
@@ -100,6 +125,8 @@ type GameState = {
   };
   orderPulse: number;
   heroes: Hero[];
+  inventory: Equipment[];
+  consumables: ConsumableStack[];
   enemies: Enemy[];
   particles: Particle[];
   logs: string[];
@@ -108,7 +135,18 @@ type GameState = {
 
 type HudState = Pick<
   GameState,
-  "selected" | "paused" | "area" | "formation" | "score" | "bossCount" | "heroes" | "logs" | "status"
+  | "selected"
+  | "paused"
+  | "area"
+  | "formation"
+  | "score"
+  | "gold"
+  | "bossCount"
+  | "heroes"
+  | "inventory"
+  | "consumables"
+  | "logs"
+  | "status"
 >;
 
 const formations: Formation[] = [
@@ -152,6 +190,35 @@ const areas: Record<AreaId, AreaDefinition> = {
 
 const areaOrder: AreaId[] = ["town", "field", "dungeon"];
 
+const shops: Record<ShopId, ShopDefinition> = {
+  weapon: {
+    id: "weapon",
+    name: "武器屋",
+    description: "選択中のキャラクターの武器を強化します。",
+    cost: 0
+  },
+  armor: {
+    id: "armor",
+    name: "防具屋",
+    description: "選択中のキャラクターの防具を強化します。",
+    cost: 0
+  },
+  item: {
+    id: "item",
+    name: "道具屋",
+    description: "全員のMPを回復し、スキル再使用までの時間を短縮します。",
+    cost: 90
+  },
+  inn: {
+    id: "inn",
+    name: "宿屋",
+    description: "全員のHPとMPを全回復します。",
+    cost: 160
+  }
+};
+
+const shopOrder: ShopId[] = ["weapon", "armor", "item", "inn"];
+
 const emptySkillCooldowns = (): Record<SkillKey, number> => ({
   e: 0,
   r: 0,
@@ -167,10 +234,36 @@ const createEquipment = (
   armorBonus: EquipmentBonus,
   trinketBonus: EquipmentBonus
 ): Record<EquipmentSlot, Equipment> => ({
-  weapon: { slot: "weapon", name: weaponName, level: 1, bonus: weaponBonus },
-  armor: { slot: "armor", name: armorName, level: 1, bonus: armorBonus },
-  trinket: { slot: "trinket", name: trinketName, level: 1, bonus: trinketBonus }
+  weapon: { id: `starter-weapon-${weaponName}`, slot: "weapon", name: weaponName, level: 1, price: 0, bonus: weaponBonus },
+  armor: { id: `starter-armor-${armorName}`, slot: "armor", name: armorName, level: 1, price: 0, bonus: armorBonus },
+  trinket: { id: `starter-trinket-${trinketName}`, slot: "trinket", name: trinketName, level: 1, price: 0, bonus: trinketBonus }
 });
+
+const equipmentCatalog: Equipment[] = [
+  { id: "iron-saber", slot: "weapon", name: "鉄のサーベル", level: 1, price: 140, bonus: { attack: 9 } },
+  { id: "duelist-rapier", slot: "weapon", name: "決闘士のレイピア", level: 1, price: 260, bonus: { attack: 14, speed: 6 } },
+  { id: "long-rifle", slot: "weapon", name: "ロングライフル", level: 1, price: 240, bonus: { attack: 12, range: 34 } },
+  { id: "sage-staff", slot: "weapon", name: "賢者の杖", level: 1, price: 250, bonus: { attack: 10, maxMp: 22 } },
+  { id: "guard-coat", slot: "armor", name: "守備隊のコート", level: 1, price: 150, bonus: { maxHp: 42 } },
+  { id: "plate-mail", slot: "armor", name: "プレートメイル", level: 1, price: 300, bonus: { maxHp: 72, speed: -8 } },
+  { id: "silk-robe", slot: "armor", name: "シルクローブ", level: 1, price: 230, bonus: { maxMp: 30, speed: 5 } },
+  { id: "ruby-charm", slot: "trinket", name: "紅玉の護符", level: 1, price: 180, bonus: { attack: 4, maxHp: 18 } },
+  { id: "wind-ring", slot: "trinket", name: "疾風の指輪", level: 1, price: 220, bonus: { speed: 14, range: 8 } }
+];
+
+function cloneEquipment(item: Equipment): Equipment {
+  return structuredClone(item);
+}
+
+const consumableCatalog: ConsumableItem[] = [
+  {
+    id: "potion",
+    name: "ポーション",
+    description: "選択中のキャラクターのHPを80回復します。",
+    price: 35,
+    healHp: 80
+  }
+];
 
 const initialHeroes: Hero[] = [
   {
@@ -319,6 +412,7 @@ function createGameState(): GameState {
     area: "field",
     formation: 0,
     score: 0,
+    gold: 220,
     last: performance.now(),
     spawnTimer: 1.1,
     bossTimer: 28,
@@ -332,6 +426,8 @@ function createGameState(): GameState {
     },
     orderPulse: 0,
     heroes: structuredClone(initialHeroes),
+    inventory: [],
+    consumables: [],
     enemies: [],
     particles: [],
     logs: ["アルカディア開拓団、出撃。"],
@@ -714,13 +810,21 @@ function updateGame(state: GameState, dt: number) {
   }
 
   const before = state.enemies.length;
-  const defeatedScore = state.enemies
-    .filter((enemy) => enemy.hp <= 0)
-    .reduce((sum, enemy) => sum + (enemy.type === "boss" ? 300 : enemy.type === "duelist" ? 45 : 25), 0);
+  const defeatedEnemies = state.enemies.filter((enemy) => enemy.hp <= 0);
+  const defeatedScore = defeatedEnemies.reduce(
+    (sum, enemy) => sum + (enemy.type === "boss" ? 300 : enemy.type === "duelist" ? 45 : 25),
+    0
+  );
+  const droppedGold = defeatedEnemies.reduce(
+    (sum, enemy) => sum + (enemy.type === "boss" ? 180 : enemy.type === "duelist" ? 38 : 18) + Math.floor(Math.random() * 12),
+    0
+  );
   state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
   const defeated = before - state.enemies.length;
   if (defeated > 0) {
     state.score += defeatedScore;
+    state.gold += droppedGold;
+    addLog(state, `${droppedGold} goldを入手。`);
   }
 
   state.particles = state.particles
@@ -748,17 +852,141 @@ function upgradeEquipment(state: GameState, slot: EquipmentSlot) {
   const hero = state.heroes[state.selected];
   const item = hero.equipment[slot];
   const cost = upgradeCost(item);
-  if (state.score < cost) {
-    state.status = `${item.name} 強化には ${cost} 点必要です。`;
+  if (state.gold < cost) {
+    state.status = `${item.name} upgrade needs ${cost} gold.`;
     return;
   }
-  state.score -= cost;
+  state.gold -= cost;
   item.level += 1;
   const stats = heroStats(hero);
   hero.hp = clamp(hero.hp + (item.bonus.maxHp ?? 0), 0, stats.maxHp);
   hero.mp = clamp(hero.mp + (item.bonus.maxMp ?? 0), 0, stats.maxMp);
-  addLog(state, `${hero.name} の ${item.name} が +${item.level} に強化。`);
-  state.status = `${item.name} を +${item.level} に強化しました。`;
+  addLog(state, `${hero.name} upgraded ${item.name} to +${item.level}.`);
+  state.status = `${item.name} is now +${item.level}.`;
+}
+
+function spendGold(state: GameState, cost: number, label: string) {
+  if (state.gold < cost) {
+    state.status = `${label} needs ${cost} gold.`;
+    return false;
+  }
+  state.gold -= cost;
+  return true;
+}
+
+function buyEquipment(state: GameState, itemId: string) {
+  if (state.area !== "town") {
+    state.status = "Equipment can be bought in town.";
+    return;
+  }
+  const item = equipmentCatalog.find((candidate) => candidate.id === itemId);
+  if (!item) return;
+  if (!spendGold(state, item.price, item.name)) return;
+  state.inventory.push(cloneEquipment(item));
+  addLog(state, `Bought ${item.name}.`);
+  state.status = `Bought ${item.name}. Equip it from inventory.`;
+}
+
+function equipInventoryItem(state: GameState, index: number) {
+  const item = state.inventory[index];
+  if (!item) return;
+  const hero = state.heroes[state.selected];
+  const previous = hero.equipment[item.slot];
+  hero.equipment[item.slot] = item;
+  state.inventory.splice(index, 1, previous);
+  const stats = heroStats(hero);
+  hero.hp = clamp(hero.hp, 0, stats.maxHp);
+  hero.mp = clamp(hero.mp, 0, stats.maxMp);
+  addLog(state, `${hero.name} equipped ${item.name}.`);
+  state.status = `${hero.name} changed ${item.slot} to ${item.name}.`;
+}
+
+function buyConsumable(state: GameState, itemId: ConsumableId) {
+  if (state.area !== "town") {
+    state.status = "Items can be bought in town.";
+    return;
+  }
+  const item = consumableCatalog.find((candidate) => candidate.id === itemId);
+  if (!item) return;
+  if (!spendGold(state, item.price, item.name)) return;
+  const stack = state.consumables.find((candidate) => candidate.item.id === item.id);
+  if (stack) {
+    stack.count += 1;
+  } else {
+    state.consumables.push({ item: structuredClone(item), count: 1 });
+  }
+  addLog(state, `Bought ${item.name}.`);
+  state.status = `${item.name}を購入しました。`;
+}
+
+function useConsumable(state: GameState, itemId: ConsumableId) {
+  const stack = state.consumables.find((candidate) => candidate.item.id === itemId);
+  if (!stack || stack.count <= 0) {
+    state.status = "ポーションを持っていません。";
+    return;
+  }
+  const hero = state.heroes[state.selected];
+  if (hero.hp <= 0) {
+    state.status = `${hero.name}は戦闘不能です。`;
+    return;
+  }
+  const stats = heroStats(hero);
+  const before = hero.hp;
+  hero.hp = clamp(hero.hp + stack.item.healHp, 0, stats.maxHp);
+  stack.count -= 1;
+  if (stack.count <= 0) {
+    state.consumables = state.consumables.filter((candidate) => candidate.count > 0);
+  }
+  const healed = Math.round(hero.hp - before);
+  state.particles.push({ x: hero.x, y: hero.y - 32, text: `+${healed}`, color: "#7dffb2", life: 0.85 });
+  addLog(state, `${hero.name} used ${stack.item.name}.`);
+  state.status = `${hero.name}のHPが${healed}回復しました。`;
+}
+
+function useTownShop(state: GameState, shop: ShopId) {
+  if (state.area !== "town") {
+    state.status = "町の施設は町で利用できます。";
+    return;
+  }
+
+  if (shop === "weapon") {
+    upgradeEquipment(state, "weapon");
+    return;
+  }
+
+  if (shop === "armor") {
+    upgradeEquipment(state, "armor");
+    return;
+  }
+
+  if (shop === "item") {
+    const cost = shops.item.cost;
+    if (!spendGold(state, cost, shops.item.name)) return;
+    for (const hero of state.heroes) {
+      const stats = heroStats(hero);
+      hero.mp = clamp(hero.mp + 42, 0, stats.maxMp);
+      for (const key of skillKeys) {
+        hero.skillCooldowns[key] = Math.max(0, hero.skillCooldowns[key] - 3.5);
+      }
+    }
+    addLog(state, "道具屋で補給しました。");
+    state.status = "道具屋で全員のMPとスキル準備を整えました。";
+    return;
+  }
+
+  const cost = shops.inn.cost;
+  if (!spendGold(state, cost, shops.inn.name)) return;
+  for (const hero of state.heroes) {
+    const stats = heroStats(hero);
+    hero.hp = stats.maxHp;
+    hero.mp = stats.maxMp;
+    hero.cooldown = 0;
+    for (const key of skillKeys) {
+      hero.skillCooldowns[key] = 0;
+    }
+  }
+  addLog(state, "宿屋で休息しました。");
+  state.status = "宿屋で全員が全回復しました。";
 }
 
 class GameEngine {
@@ -840,6 +1068,26 @@ class GameEngine {
   enhanceEquipment(slot: EquipmentSlot) {
     upgradeEquipment(this.state, slot);
   }
+
+  useTownShop(shop: ShopId) {
+    useTownShop(this.state, shop);
+  }
+
+  buyEquipment(itemId: string) {
+    buyEquipment(this.state, itemId);
+  }
+
+  equipInventoryItem(index: number) {
+    equipInventoryItem(this.state, index);
+  }
+
+  buyConsumable(itemId: ConsumableId) {
+    buyConsumable(this.state, itemId);
+  }
+
+  useConsumable(itemId: ConsumableId) {
+    useConsumable(this.state, itemId);
+  }
 }
 function snapshotHud(state: GameState): HudState {
   return {
@@ -848,8 +1096,11 @@ class GameEngine {
     area: state.area,
     formation: state.formation,
     score: state.score,
+    gold: state.gold,
     bossCount: state.bossCount,
     heroes: structuredClone(state.heroes),
+    inventory: structuredClone(state.inventory),
+    consumables: structuredClone(state.consumables),
     logs: [...state.logs],
     status: state.status
   };
@@ -861,11 +1112,15 @@ export {
   areaOrder,
   areas,
   clamp,
+  consumableCatalog,
+  equipmentCatalog,
   formations,
   heroStats,
   isMovementKey,
+  shopOrder,
+  shops,
   skillKeys,
   upgradeCost
 };
 
-export type { AreaId, Enemy, EquipmentSlot, GameState, Hero, HudState, Point, SkillKey };
+export type { AreaId, ConsumableId, Enemy, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey };

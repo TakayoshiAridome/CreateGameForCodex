@@ -5,14 +5,20 @@ import {
   areaOrder,
   areas,
   clamp,
+  consumableCatalog,
+  equipmentCatalog,
   formations,
   heroStats,
   isMovementKey,
+  shopOrder,
+  shops,
   skillKeys,
   upgradeCost,
   type AreaId,
+  type ConsumableId,
   type EquipmentSlot,
   type HudState,
+  type ShopId,
   type SkillKey
 } from "./game";
 
@@ -141,6 +147,36 @@ function App() {
     setHud(engine.snapshot());
   };
 
+  const useShop = (shop: ShopId) => {
+    const engine = engineRef.current;
+    engine.useTownShop(shop);
+    setHud(engine.snapshot());
+  };
+
+  const buyEquipment = (itemId: string) => {
+    const engine = engineRef.current;
+    engine.buyEquipment(itemId);
+    setHud(engine.snapshot());
+  };
+
+  const equipInventoryItem = (index: number) => {
+    const engine = engineRef.current;
+    engine.equipInventoryItem(index);
+    setHud(engine.snapshot());
+  };
+
+  const buyConsumable = (itemId: ConsumableId) => {
+    const engine = engineRef.current;
+    engine.buyConsumable(itemId);
+    setHud(engine.snapshot());
+  };
+
+  const useConsumable = (itemId: ConsumableId) => {
+    const engine = engineRef.current;
+    engine.useConsumable(itemId);
+    setHud(engine.snapshot());
+  };
+
   const selectedHero = hud.heroes[hud.selected];
   const selectedStats = heroStats(selectedHero);
 
@@ -156,6 +192,7 @@ function App() {
           <div className="resource">
             <span>{areas[hud.area].name}</span>
             <span>Boss {hud.bossCount}</span>
+            <span>Gold {hud.gold}</span>
             <strong>{hud.score}</strong>
           </div>
         </div>
@@ -224,6 +261,60 @@ function App() {
         <div className="crest">A</div>
         <h2>アルカディア開拓団</h2>
         <p className="status">{hud.status}</p>
+        {hud.area === "town" && (
+          <div className="town-shops">
+            {shopOrder.map((shop) => {
+              const service = shops[shop];
+              const cost =
+                shop === "weapon"
+                  ? upgradeCost(selectedHero.equipment.weapon)
+                  : shop === "armor"
+                    ? upgradeCost(selectedHero.equipment.armor)
+                    : service.cost;
+              return (
+                <button className="shop-card" key={shop} onClick={() => useShop(shop)} type="button">
+                  <span>
+                    <strong>{service.name}</strong>
+                    <small>{service.description}</small>
+                  </span>
+                  <b>{cost} gold</b>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {hud.area === "town" && (
+          <div className="shop-stock">
+            <div className="equipment-head">
+              <strong>販売装備</strong>
+              <span>購入すると所持装備に入ります</span>
+            </div>
+            {equipmentCatalog.map((item) => (
+              <button className="equipment-item" key={item.id} onClick={() => buyEquipment(item.id)} type="button">
+                <span>
+                  {item.name} <small>{item.slot}</small>
+                </span>
+                <small>{item.price} gold</small>
+              </button>
+            ))}
+          </div>
+        )}
+        {hud.area === "town" && (
+          <div className="shop-stock">
+            <div className="equipment-head">
+              <strong>道具屋の商品</strong>
+              <span>ポーションを購入できます</span>
+            </div>
+            {consumableCatalog.map((item) => (
+              <button className="equipment-item" key={item.id} onClick={() => buyConsumable(item.id)} type="button">
+                <span>
+                  {item.name} <small>{item.description}</small>
+                </span>
+                <small>{item.price} gold</small>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="equipment">
           <div className="equipment-head">
             <strong>{selectedHero.name}</strong>
@@ -236,10 +327,46 @@ function App() {
                 <span>
                   {item.name} +{item.level}
                 </span>
-                <small>{upgradeCost(item)} pts</small>
+                <small>{upgradeCost(item)} gold</small>
               </button>
             );
           })}
+        </div>
+        <div className="equipment inventory">
+          <div className="equipment-head">
+            <strong>所持装備</strong>
+            <span>クリックで選択中キャラに付け替え</span>
+          </div>
+          {hud.inventory.length === 0 ? (
+            <p className="empty-inventory">所持装備なし</p>
+          ) : (
+            hud.inventory.map((item, index) => (
+              <button className="equipment-item" key={`${item.id}-${index}`} onClick={() => equipInventoryItem(index)} type="button">
+                <span>
+                  {item.name} <small>{item.slot}</small>
+                </span>
+                <small>Equip</small>
+              </button>
+            ))
+          )}
+        </div>
+        <div className="equipment inventory">
+          <div className="equipment-head">
+            <strong>所持道具</strong>
+            <span>クリックで選択中キャラに使用</span>
+          </div>
+          {hud.consumables.length === 0 ? (
+            <p className="empty-inventory">ポーションなし</p>
+          ) : (
+            hud.consumables.map((stack) => (
+              <button className="equipment-item" key={stack.item.id} onClick={() => useConsumable(stack.item.id)} type="button">
+                <span>
+                  {stack.item.name} <small>HP +{stack.item.healHp}</small>
+                </span>
+                <small>x{stack.count}</small>
+              </button>
+            ))
+          )}
         </div>
         <div className="log" aria-live="polite">
           {hud.logs.map((log, index) => (

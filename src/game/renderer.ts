@@ -73,10 +73,36 @@ function rebuildField(view: ThreeView, state: GameState) {
   view.field.add(grid);
 
   if (state.area === "town") {
+    const shopBuildings = [
+      { name: "武器屋", x: -3.3, color: 0x8b5a4c, roof: 0x7d3344 },
+      { name: "防具屋", x: -1.1, color: 0x5f6f80, roof: 0x36465f },
+      { name: "道具屋", x: 1.1, color: 0x6f7653, roof: 0x5f6f38 },
+      { name: "宿屋", x: 3.3, color: 0x8b6b55, roof: 0x8a4a36 }
+    ];
+    for (const shop of shopBuildings) {
+      const building = new THREE.Group();
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(1.18, 0.78, 0.92),
+        new THREE.MeshStandardMaterial({ color: shop.color, roughness: 0.78 })
+      );
+      wall.position.y = 0.39;
+      const roof = new THREE.Mesh(
+        new THREE.ConeGeometry(0.84, 0.48, 4),
+        new THREE.MeshStandardMaterial({ color: shop.roof, roughness: 0.72 })
+      );
+      roof.position.y = 0.98;
+      roof.rotation.y = Math.PI / 4;
+      const sign = createTextSprite(shop.name, "#fff0c2", 1);
+      sign.scale.set(0.9, 0.3, 1);
+      sign.position.set(0, 1.38, 0.03);
+      building.add(wall, roof, sign);
+      building.position.set(shop.x, 0, -depth / 2 + 1.18);
+      view.field.add(building);
+    }
     for (let i = -2; i <= 2; i += 1) {
       const house = new THREE.Group();
       const wall = new THREE.Mesh(
-        new THREE.BoxGeometry(1.0, 0.7, 0.82),
+        new THREE.BoxGeometry(0.82, 0.62, 0.7),
         new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0x8b6b55 : 0x6d7a70, roughness: 0.78 })
       );
       wall.position.y = 0.35;
@@ -87,7 +113,7 @@ function rebuildField(view: ThreeView, state: GameState) {
       roof.position.y = 0.92;
       roof.rotation.y = Math.PI / 4;
       house.add(wall, roof);
-      house.position.set(i * 2.1, 0, -depth / 2 + 1.1 + Math.abs(i) * 0.22);
+      house.position.set(i * 1.65, 0, depth / 2 - 1.0 - Math.abs(i) * 0.2);
       view.field.add(house);
     }
     const plaza = new THREE.Mesh(
