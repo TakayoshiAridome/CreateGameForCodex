@@ -1112,33 +1112,119 @@ function upgradeEquipment(state: GameState, slot: EquipmentSlot) {
   state.status = `${item.name} を +${item.level} に強化しました。`;
 }
 
+class GameEngine {
+  readonly state: GameState;
+
+  constructor() {
+    this.state = createGameState();
+  }
+
+  snapshot() {
+    return snapshotHud(this.state);
+  }
+
+  update(dt: number) {
+    updateGame(this.state, dt);
+  }
+
+  selectHero(index: number) {
+    this.state.selected = Math.trunc(clamp(index, 0, this.state.heroes.length - 1));
+    this.state.status = `${this.state.heroes[this.state.selected].name} を選択中。`;
+  }
+
+  toggleHold() {
+    this.state.paused = !this.state.paused;
+  }
+
+  changeFormation() {
+    this.state.formation = (this.state.formation + 1) % formations.length;
+    addLog(this.state, `隊列を ${formations[this.state.formation].name} に変更。`);
+    queueFormationMove(this.state);
+  }
+
+  setMovement(key: string, pressed: boolean) {
+    setMovementKey(this.state, key, pressed);
+    if (pressed) this.state.status = "WASDで家門を移動中。";
+  }
+
+  setMoveTarget(point: Point) {
+    this.state.targetPoint = {
+      x: clamp(point.x, 100, this.state.view.w - 160),
+      y: clamp(point.y, 108, combatBottom(this.state))
+    };
+    this.state.orderPulse = 0.55;
+    this.state.status = `隊列「${formations[this.state.formation].name}」で移動命令。`;
+  }
+
+  selectAt(point: Point) {
+    const clickedHero = this.state.heroes.findIndex((hero) => Math.hypot(hero.x - point.x, hero.y - point.y) < 42);
+    if (clickedHero >= 0) {
+      this.selectHero(clickedHero);
+      return;
+    }
+    this.setMoveTarget(point);
+  }
+
+  triggerSkill(key: SkillKey) {
+    useSkill(this.state, key);
+  }
+
+  enhanceEquipment(slot: EquipmentSlot) {
+    upgradeEquipment(this.state, slot);
+  }
+}
+
+class ThreeGameRenderer {
+  private readonly view: ThreeView;
+  private dpr = 1;
+
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private readonly state: GameState
+  ) {
+    this.view = createThreeView(canvas);
+  }
+
+  resize() {
+    this.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    resizeThreeView(this.view, this.state, this.canvas, this.dpr);
+  }
+
+  render() {
+    renderGame(this.view, this.state);
+  }
+
+  dispose() {
+    this.view.renderer.dispose();
+  }
+}
+
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const stateRef = useRef<GameState>(createGameState());
-  const [hud, setHud] = useState<HudState>(() => snapshotHud(stateRef.current));
+  const engineRef = useRef<GameEngine>(new GameEngine());
+  const [hud, setHud] = useState<HudState>(() => engineRef.current.snapshot());
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const view = createThreeView(canvas);
-    const state = stateRef.current;
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const engine = engineRef.current;
+    const renderer = new ThreeGameRenderer(canvas, engine.state);
     let animationId = 0;
     let hudTimer = 0;
 
     const resize = () => {
-      resizeThreeView(view, state, canvas, dpr);
+      renderer.resize();
     };
 
     const loop = (now: number) => {
-      const dt = Math.min(0.04, (now - state.last) / 1000);
-      state.last = now;
-      updateGame(state, dt);
-      renderGame(view, state);
+      const dt = Math.min(0.04, (now - engine.state.last) / 1000);
+      engine.state.last = now;
+      engine.update(dt);
+      renderer.render();
       hudTimer += dt;
       if (hudTimer > 0.12) {
         hudTimer = 0;
-        setHud(snapshotHud(state));
+        setHud(engine.snapshot());
       }
       animationId = requestAnimationFrame(loop);
     };
@@ -1149,41 +1235,37 @@ function App() {
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", resize);
-      view.renderer.dispose();
+      renderer.dispose();
     };
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const state = stateRef.current;
+      const engine = engineRef.current;
       if (isMovementKey(event.key)) {
         event.preventDefault();
-        setMovementKey(state, event.key, true);
-        state.status = "WASDで家門を移動中。";
+        engine.setMovement(event.key, true);
       }
       if (event.key >= "1" && event.key <= "4") {
-        state.selected = Number(event.key) - 1;
-        state.status = `${state.heroes[state.selected].name} を選択中。`;
+        engine.selectHero(Number(event.key) - 1);
       }
-      if (event.code === "Space") state.paused = !state.paused;
+      if (event.code === "Space") engine.toggleHold();
       if (event.key.toLowerCase() === "q") {
-        state.formation = (state.formation + 1) % formations.length;
-        addLog(state, `隊列を ${formations[state.formation].name} に変更。`);
-        queueFormationMove(state);
+        engine.changeFormation();
       }
       const skillKey = event.key.toLowerCase() as SkillKey;
       if (skillKeys.includes(skillKey)) {
         event.preventDefault();
-        useSkill(state, skillKey);
+        engine.triggerSkill(skillKey);
       }
-      setHud(snapshotHud(state));
+      setHud(engine.snapshot());
     };
     const handleKeyUp = (event: KeyboardEvent) => {
-      const state = stateRef.current;
+      const engine = engineRef.current;
       if (!isMovementKey(event.key)) return;
       event.preventDefault();
-      setMovementKey(state, event.key, false);
-      setHud(snapshotHud(state));
+      engine.setMovement(event.key, false);
+      setHud(engine.snapshot());
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
@@ -1196,59 +1278,44 @@ function App() {
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const state = stateRef.current;
+    const engine = engineRef.current;
     const rect = canvas.getBoundingClientRect();
     const point = {
-      x: (event.clientX - rect.left) * (state.view.w / rect.width),
-      y: (event.clientY - rect.top) * (state.view.h / rect.height)
+      x: (event.clientX - rect.left) * (engine.state.view.w / rect.width),
+      y: (event.clientY - rect.top) * (engine.state.view.h / rect.height)
     };
-
-    const clickedHero = state.heroes.findIndex((hero) => Math.hypot(hero.x - point.x, hero.y - point.y) < 42);
-    if (clickedHero >= 0) {
-      state.selected = clickedHero;
-      state.status = `${state.heroes[state.selected].name} を選択中。`;
-    } else {
-      state.targetPoint = {
-        x: clamp(point.x, 100, state.view.w - 160),
-        y: clamp(point.y, 108, combatBottom(state))
-      };
-      state.orderPulse = 0.55;
-      state.status = `隊列「${formations[state.formation].name}」で移動命令。`;
-    }
-    setHud(snapshotHud(state));
+    engine.selectAt(point);
+    setHud(engine.snapshot());
   };
 
   const selectHero = (index: number) => {
-    const state = stateRef.current;
-    state.selected = index;
-    state.status = `${state.heroes[state.selected].name} を選択中。`;
-    setHud(snapshotHud(state));
+    const engine = engineRef.current;
+    engine.selectHero(index);
+    setHud(engine.snapshot());
   };
 
   const toggleHold = () => {
-    const state = stateRef.current;
-    state.paused = !state.paused;
-    setHud(snapshotHud(state));
+    const engine = engineRef.current;
+    engine.toggleHold();
+    setHud(engine.snapshot());
   };
 
   const changeFormation = () => {
-    const state = stateRef.current;
-    state.formation = (state.formation + 1) % formations.length;
-    addLog(state, `隊列を ${formations[state.formation].name} に変更。`);
-    queueFormationMove(state);
-    setHud(snapshotHud(state));
+    const engine = engineRef.current;
+    engine.changeFormation();
+    setHud(engine.snapshot());
   };
 
   const triggerSkill = (key: SkillKey) => {
-    const state = stateRef.current;
-    useSkill(state, key);
-    setHud(snapshotHud(state));
+    const engine = engineRef.current;
+    engine.triggerSkill(key);
+    setHud(engine.snapshot());
   };
 
   const enhanceEquipment = (slot: EquipmentSlot) => {
-    const state = stateRef.current;
-    upgradeEquipment(state, slot);
-    setHud(snapshotHud(state));
+    const engine = engineRef.current;
+    engine.enhanceEquipment(slot);
+    setHud(engine.snapshot());
   };
 
   const selectedHero = hud.heroes[hud.selected];
