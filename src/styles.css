@@ -188,6 +188,21 @@ h1 {
   cursor: pointer;
 }
 
+.area-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.area-tabs button {
+  min-width: 74px;
+}
+
+.area-tabs button.active {
+  border-color: #ffd176;
+  color: #1e1b24;
+  background: linear-gradient(180deg, #ffd176, #d59c49);
+}
+
 .controls button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
