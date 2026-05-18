@@ -1,0 +1,369 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
+  background: #171722;
+  color: #f6ead7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(59, 38, 50, 0.9), rgba(17, 28, 43, 0.95)),
+    #161823;
+}
+
+button {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 16px;
+  width: min(1500px, 100vw);
+  height: 100vh;
+  padding: 16px;
+  margin: 0 auto;
+}
+
+.stage-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(227, 181, 93, 0.42);
+  background: #242435;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.38);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.topbar,
+.hud {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.topbar {
+  top: 14px;
+}
+
+.hud {
+  bottom: 14px;
+  align-items: flex-end;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #e7c178;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 700;
+  color: #fff7e8;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.65);
+}
+
+.resource {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  min-width: 178px;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border: 1px solid rgba(231, 193, 120, 0.78);
+  background: linear-gradient(180deg, rgba(40, 36, 52, 0.94), rgba(25, 23, 36, 0.96));
+  backdrop-filter: blur(8px);
+}
+
+.resource span {
+  color: #f8e6c2;
+}
+
+.resource strong {
+  color: #ffcf6f;
+  font-size: 22px;
+}
+
+.party {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(132px, 1fr));
+  gap: 10px;
+  width: min(760px, 76%);
+  pointer-events: auto;
+}
+
+.member {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  border: 1px solid rgba(227, 181, 93, 0.42);
+  background: linear-gradient(180deg, rgba(37, 37, 53, 0.92), rgba(24, 24, 36, 0.95));
+  color: #f9ead5;
+  padding: 10px;
+  text-align: left;
+  backdrop-filter: blur(9px);
+  cursor: pointer;
+}
+
+.member.active {
+  border-color: #ffd176;
+  box-shadow: inset 0 0 0 1px rgba(255, 214, 124, 0.36), 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.member-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.role {
+  color: #e4b96a;
+}
+
+.bar {
+  display: block;
+  width: 100%;
+  height: 8px;
+  margin-top: 5px;
+  background: rgba(255, 255, 255, 0.13);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #cc4b58, #f28b55);
+}
+
+.mana .fill {
+  background: linear-gradient(90deg, #486fd7, #65c5df);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  pointer-events: auto;
+}
+
+.controls button {
+  min-width: 78px;
+  height: 42px;
+  border: 1px solid rgba(231, 193, 120, 0.78);
+  background: linear-gradient(180deg, rgba(75, 62, 78, 0.96), rgba(37, 34, 50, 0.98));
+  color: #fff4df;
+  cursor: pointer;
+}
+
+.controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.controls button:hover,
+.member:hover {
+  border-color: #ffe1a0;
+  background: linear-gradient(180deg, rgba(107, 77, 85, 0.98), rgba(50, 42, 59, 0.98));
+}
+
+.panel {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid rgba(227, 181, 93, 0.42);
+  background:
+    linear-gradient(180deg, rgba(42, 39, 54, 0.97), rgba(24, 24, 36, 0.98)),
+    #242435;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.crest {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e7c178;
+  color: #ffd77e;
+  background: #2d2636;
+  font-family: Georgia, serif;
+  font-size: 35px;
+}
+
+h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff1d3;
+}
+
+.status {
+  color: #d6c5aa;
+  line-height: 1.65;
+}
+
+.log {
+  flex: 1;
+  min-height: 120px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #d9c7aa;
+}
+
+.equipment {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(231, 193, 120, 0.22);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.equipment-head {
+  display: grid;
+  gap: 3px;
+  color: #fff1d3;
+  font-size: 13px;
+}
+
+.equipment-head span {
+  color: #cdbb9d;
+  font-size: 12px;
+}
+
+.equipment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid rgba(231, 193, 120, 0.3);
+  background: rgba(20, 20, 30, 0.68);
+  color: #f9ead5;
+  cursor: pointer;
+}
+
+.equipment-item:hover {
+  border-color: #ffe1a0;
+}
+
+.equipment-item small {
+  color: #ffd77e;
+  white-space: nowrap;
+}
+
+.log p {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(231, 193, 120, 0.16);
+}
+
+.help {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 10px;
+  color: #cdbb9d;
+  font-size: 13px;
+}
+
+.help span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 58px;
+  padding: 3px 8px;
+  border: 1px solid rgba(231, 193, 120, 0.34);
+  color: #ffd77e;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 940px) {
+  body {
+    overflow: auto;
+  }
+
+  .shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .stage-wrap {
+    height: 68vh;
+    min-height: 520px;
+  }
+
+  .party {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .hud {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .controls {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 520px) {
+  .shell {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .stage-wrap {
+    min-height: 520px;
+  }
+
+  h1 {
+    font-size: 29px;
+  }
+
+  .resource {
+    min-width: 118px;
+    gap: 10px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .controls button {
+    min-width: 88px;
+  }
+}
