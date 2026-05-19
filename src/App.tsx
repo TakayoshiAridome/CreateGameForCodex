@@ -30,6 +30,7 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<ThreeGameRenderer | null>(null);
   const cameraDragRef = useRef({ active: false, dragged: false, lastX: 0, lastY: 0, startX: 0, startY: 0 });
+  const canvasInputActiveRef = useRef(true);
   const suppressCanvasClickRef = useRef(false);
   const engineRef = useRef<GameEngine>(new GameEngine());
   const [hud, setHud] = useState<HudState>(() => engineRef.current.snapshot());
@@ -80,6 +81,14 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const clearCanvasInput = () => {
+      cameraDragRef.current.active = false;
+      cameraDragRef.current.dragged = false;
+      canvasInputActiveRef.current = false;
+      suppressCanvasClickRef.current = false;
+      engineRef.current.clearMovement();
+      setHud(engineRef.current.snapshot());
+    };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!started) {
         if (event.key === "Enter" || event.code === "Space") {
@@ -95,6 +104,11 @@ function App() {
       const engine = engineRef.current;
       if (isMovementKey(event.key)) {
         event.preventDefault();
+        if (!canvasInputActiveRef.current || document.activeElement !== canvasRef.current) {
+          engine.clearMovement();
+          setHud(engine.snapshot());
+          return;
+        }
         engine.setMovement(event.key, true);
       }
       if (event.key >= "1" && event.key <= "4") {
@@ -119,16 +133,32 @@ function App() {
       engine.setMovement(event.key, false);
       setHud(engine.snapshot());
     };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!started) return;
+      if (event.target === canvasRef.current) return;
+      clearCanvasInput();
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) clearCanvasInput();
+    };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", clearCanvasInput);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", clearCanvasInput);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [started]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!started) return;
+    canvasRef.current?.focus();
+    canvasInputActiveRef.current = true;
     if (suppressCanvasClickRef.current) {
       suppressCanvasClickRef.current = false;
       return;
@@ -166,11 +196,15 @@ function App() {
   const handleCanvasWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
     if (!started) return;
     event.preventDefault();
+    canvasRef.current?.focus();
+    canvasInputActiveRef.current = true;
     rendererRef.current?.zoomBy(event.deltaY);
   };
 
   const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!started || event.button !== 0) return;
+    canvasRef.current?.focus();
+    canvasInputActiveRef.current = true;
     suppressCanvasClickRef.current = false;
     cameraDragRef.current = {
       active: true,
@@ -275,6 +309,7 @@ function App() {
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={stopCanvasDrag}
           onWheel={handleCanvasWheel}
+          tabIndex={0}
         />
         {screen === "title" && (
           <div className="title-screen">

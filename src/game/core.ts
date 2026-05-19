@@ -129,6 +129,7 @@ type GameState = {
   spawnTimer: number;
   bossTimer: number;
   bossCount: number;
+  cameraYaw: number;
   targetPoint: Point | null;
   movement: {
     up: boolean;
@@ -653,6 +654,7 @@ function createGameState(): GameState {
     spawnTimer: 1.1,
     bossTimer: 28,
     bossCount: 0,
+    cameraYaw: 0.725,
     targetPoint: null,
     movement: {
       up: false,
@@ -998,10 +1000,18 @@ function movePartyWithKeyboard(state: GameState, dt: number) {
   if (x === 0 && y === 0) return false;
 
   const length = Math.hypot(x, y) || 1;
+  const inputX = x / length;
+  const inputY = y / length;
+  const right = { x: Math.cos(state.cameraYaw), y: -Math.sin(state.cameraYaw) };
+  const down = { x: Math.sin(state.cameraYaw), y: Math.cos(state.cameraYaw) };
+  const movement = {
+    x: right.x * inputX + down.x * inputY,
+    y: right.y * inputX + down.y * inputY
+  };
   const speed = 178;
   const anchor = currentFormationAnchor(state);
-  anchor.x += (x / length) * speed * dt;
-  anchor.y += (y / length) * speed * dt;
+  anchor.x += movement.x * speed * dt;
+  anchor.y += movement.y * speed * dt;
   const clampedAnchor = clampFormationAnchor(state, anchor);
   state.targetPoint = null;
   state.orderPulse = Math.max(state.orderPulse, 0.18);
@@ -1256,6 +1266,13 @@ function setMovementKey(state: GameState, key: string, pressed: boolean) {
   if (normalized === "d") state.movement.right = pressed;
 }
 
+function clearMovement(state: GameState) {
+  state.movement.up = false;
+  state.movement.down = false;
+  state.movement.left = false;
+  state.movement.right = false;
+}
+
 function isMovementKey(key: string) {
   return key.length === 1 && "wasd".includes(key.toLowerCase());
 }
@@ -1481,6 +1498,10 @@ class GameEngine {
   setMovement(key: string, pressed: boolean) {
     setMovementKey(this.state, key, pressed);
     if (pressed) this.state.status = "WASDで家門を移動中。";
+  }
+
+  clearMovement() {
+    clearMovement(this.state);
   }
 
   setMoveTarget(point: Point) {

@@ -14,6 +14,7 @@ type ThreeView = {
 const WORLD_SCALE = 74;
 const LUCERIA_MODEL_URL = "/assets/luceria_swordsaint_apoze.glb";
 const CAMERA_RADIUS = 15.3;
+const LUCERIA_SATURATION = 1.62;
 const sharedTextureKeys = [
   "map",
   "normalMap",
@@ -67,10 +68,22 @@ function prepareLuceriaMaterial(material: THREE.Material) {
   }
 
   const litMaterial = material as THREE.MeshStandardMaterial;
-  if (litMaterial.color && texturedMaterial.map) litMaterial.color.set(0xffffff);
-  if (litMaterial.emissive && !texturedMaterial.emissiveMap) litMaterial.emissive.set(0x000000);
+  if (litMaterial.color && texturedMaterial.map) litMaterial.color.setScalar(1.22);
+  if (litMaterial.emissive) {
+    litMaterial.emissive.set(0xffffff);
+    litMaterial.emissiveIntensity = 0.08;
+  }
   if (typeof litMaterial.metalness === "number") litMaterial.metalness = Math.min(litMaterial.metalness, 0.35);
-  if (typeof litMaterial.roughness === "number") litMaterial.roughness = Math.min(Math.max(litMaterial.roughness, 0.38), 0.72);
+  if (typeof litMaterial.roughness === "number") litMaterial.roughness = Math.min(Math.max(litMaterial.roughness, 0.34), 0.66);
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <map_fragment>",
+      `#include <map_fragment>
+      float luceriaLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+      diffuseColor.rgb = mix(vec3(luceriaLuma), diffuseColor.rgb, ${LUCERIA_SATURATION.toFixed(2)});`
+    );
+  };
+  material.customProgramCacheKey = () => `luceria-saturation-${LUCERIA_SATURATION}`;
   material.needsUpdate = true;
 }
 
@@ -723,6 +736,7 @@ class ThreeGameRenderer {
 
   private applyCamera() {
     if (!this.view || this.contextLost) return;
+    this.state.cameraYaw = this.cameraYaw;
     const horizontalRadius = Math.cos(this.cameraPitch) * CAMERA_RADIUS;
     this.view.camera.position.set(
       Math.sin(this.cameraYaw) * horizontalRadius,
