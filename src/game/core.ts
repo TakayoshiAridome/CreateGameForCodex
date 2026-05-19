@@ -49,6 +49,9 @@ type ConsumableStack = {
 type Hero = Point & {
   name: string;
   role: string;
+  level: number;
+  exp: number;
+  nextExp: number;
   color: string;
   trim: string;
   hair: string;
@@ -269,6 +272,9 @@ const initialHeroes: Hero[] = [
   {
     name: "アデリア",
     role: "Fencer",
+    level: 1,
+    exp: 0,
+    nextExp: 100,
     color: "#314f8f",
     trim: "#f2c772",
     hair: "#5b3027",
@@ -303,6 +309,9 @@ const initialHeroes: Hero[] = [
   {
     name: "セリオ",
     role: "Musketeer",
+    level: 1,
+    exp: 0,
+    nextExp: 100,
     color: "#56636f",
     trim: "#ffd87b",
     hair: "#d7d0c5",
@@ -337,6 +346,9 @@ const initialHeroes: Hero[] = [
   {
     name: "ミレーヌ",
     role: "Elementalist",
+    level: 1,
+    exp: 0,
+    nextExp: 100,
     color: "#7f4168",
     trim: "#86d8e5",
     hair: "#f1c16e",
@@ -371,6 +383,9 @@ const initialHeroes: Hero[] = [
   {
     name: "イリス",
     role: "Scout",
+    level: 1,
+    exp: 0,
+    nextExp: 100,
     color: "#3c7f63",
     trim: "#b7f0cf",
     hair: "#334039",
@@ -454,13 +469,38 @@ function equipmentBonus(hero: Hero): Required<EquipmentBonus> {
 
 function heroStats(hero: Hero) {
   const bonus = equipmentBonus(hero);
+  const levelBonus = hero.level - 1;
   return {
-    attack: hero.attack + bonus.attack,
-    maxHp: hero.maxHp + bonus.maxHp,
-    maxMp: hero.maxMp + bonus.maxMp,
-    range: hero.range + bonus.range,
-    speed: hero.speed + bonus.speed
+    attack: hero.attack + bonus.attack + levelBonus * 3,
+    maxHp: hero.maxHp + bonus.maxHp + levelBonus * 18,
+    maxMp: hero.maxMp + bonus.maxMp + levelBonus * 7,
+    range: hero.range + bonus.range + Math.floor(levelBonus / 3) * 4,
+    speed: hero.speed + bonus.speed + levelBonus * 2
   };
+}
+
+function expReward(enemy: Enemy) {
+  return enemy.type === "boss" ? 140 : enemy.type === "duelist" ? 34 : 18;
+}
+
+function grantPartyExp(state: GameState, amount: number) {
+  const aliveHeroes = state.heroes.filter((hero) => hero.hp > 0);
+  const receivers = aliveHeroes.length > 0 ? aliveHeroes : state.heroes;
+  const share = Math.max(1, Math.floor(amount / receivers.length));
+  for (const hero of receivers) {
+    hero.exp += share;
+    while (hero.exp >= hero.nextExp) {
+      hero.exp -= hero.nextExp;
+      hero.level += 1;
+      hero.nextExp = Math.floor(hero.nextExp * 1.28 + 42);
+      const stats = heroStats(hero);
+      hero.hp = stats.maxHp;
+      hero.mp = stats.maxMp;
+      state.particles.push({ x: hero.x, y: hero.y - 46, text: `Lv ${hero.level}`, color: "#ffe08a", life: 1 });
+      addLog(state, `${hero.name} reached Lv ${hero.level}.`);
+      state.status = `${hero.name}がLv ${hero.level}になりました。`;
+    }
+  }
 }
 
 function distance(a: Point, b: Point) {
@@ -819,11 +859,13 @@ function updateGame(state: GameState, dt: number) {
     (sum, enemy) => sum + (enemy.type === "boss" ? 180 : enemy.type === "duelist" ? 38 : 18) + Math.floor(Math.random() * 12),
     0
   );
+  const gainedExp = defeatedEnemies.reduce((sum, enemy) => sum + expReward(enemy), 0);
   state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
   const defeated = before - state.enemies.length;
   if (defeated > 0) {
     state.score += defeatedScore;
     state.gold += droppedGold;
+    grantPartyExp(state, gainedExp);
     addLog(state, `${droppedGold} goldを入手。`);
   }
 

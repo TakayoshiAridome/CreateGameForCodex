@@ -143,8 +143,15 @@ h1 {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   font-size: 13px;
+}
+
+.member-meta {
+  display: block;
+  margin-bottom: 7px;
+  color: #cdbb9d;
+  font-size: 12px;
 }
 
 .role {
@@ -169,6 +176,14 @@ h1 {
 
 .mana .fill {
   background: linear-gradient(90deg, #486fd7, #65c5df);
+}
+
+.exp {
+  height: 5px;
+}
+
+.exp .fill {
+  background: linear-gradient(90deg, #f1c861, #fff0a8);
 }
 
 .controls {

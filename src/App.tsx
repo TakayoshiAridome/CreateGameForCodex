@@ -207,13 +207,17 @@ function App() {
               >
                 <span className="member-head">
                   <strong>{hero.name}</strong>
-                  <span className="role">{hero.role}</span>
+                  <span className="role">Lv {hero.level}</span>
                 </span>
+                <span className="member-meta">{hero.role}</span>
                 <span className="bar">
                   <span className="fill" style={{ width: `${clamp(hero.hp / heroStats(hero).maxHp, 0, 1) * 100}%` }} />
                 </span>
                 <span className="bar mana">
                   <span className="fill" style={{ width: `${clamp(hero.mp / heroStats(hero).maxMp, 0, 1) * 100}%` }} />
+                </span>
+                <span className="bar exp">
+                  <span className="fill" style={{ width: `${clamp(hero.exp / hero.nextExp, 0, 1) * 100}%` }} />
                 </span>
               </button>
             ))}
@@ -318,6 +322,9 @@ function App() {
         <div className="equipment">
           <div className="equipment-head">
             <strong>{selectedHero.name}</strong>
+            <span>
+              Lv {selectedHero.level} / EXP {selectedHero.exp}/{selectedHero.nextExp}
+            </span>
             <span>ATK {selectedStats.attack} / HP {selectedStats.maxHp} / MP {selectedStats.maxMp}</span>
           </div>
           {(Object.keys(selectedHero.equipment) as EquipmentSlot[]).map((slot) => {
