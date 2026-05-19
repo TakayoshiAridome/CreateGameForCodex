@@ -22,10 +22,20 @@ import {
   type SkillKey
 } from "./game";
 
+type Screen = "title" | "barracks" | "game";
+
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine>(new GameEngine());
   const [hud, setHud] = useState<HudState>(() => engineRef.current.snapshot());
+  const [screen, setScreen] = useState<Screen>("title");
+  const [selectedBarracksSlot, setSelectedBarracksSlot] = useState(0);
+  const started = screen === "game";
+  const startedRef = useRef(started);
+
+  useEffect(() => {
+    startedRef.current = started;
+  }, [started]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -42,7 +52,7 @@ function App() {
     const loop = (now: number) => {
       const dt = Math.min(0.04, (now - engine.state.last) / 1000);
       engine.state.last = now;
-      engine.update(dt);
+      if (startedRef.current) engine.update(dt);
       renderer.render();
       hudTimer += dt;
       if (hudTimer > 0.12) {
@@ -64,6 +74,17 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (!started) {
+        if (event.key === "Enter" || event.code === "Space") {
+          event.preventDefault();
+          setScreen("game");
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setScreen("title");
+        }
+        return;
+      }
       const engine = engineRef.current;
       if (isMovementKey(event.key)) {
         event.preventDefault();
@@ -84,6 +105,7 @@ function App() {
       setHud(engine.snapshot());
     };
     const handleKeyUp = (event: KeyboardEvent) => {
+      if (!started) return;
       const engine = engineRef.current;
       if (!isMovementKey(event.key)) return;
       event.preventDefault();
@@ -96,9 +118,10 @@ function App() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, []);
+  }, [started]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!started) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const engine = engineRef.current;
@@ -177,6 +200,18 @@ function App() {
     setHud(engine.snapshot());
   };
 
+  const openBarracks = () => {
+    setSelectedBarracksSlot(Math.min(selectedBarracksSlot, hud.heroes.length - 1));
+    setScreen("barracks");
+    setHud(engineRef.current.snapshot());
+  };
+
+  const swapFromReserve = (reserveIndex: number) => {
+    const engine = engineRef.current;
+    engine.swapPartyMember(selectedBarracksSlot, reserveIndex);
+    setHud(engine.snapshot());
+  };
+
   const selectedHero = hud.heroes[hud.selected];
   const selectedStats = heroStats(selectedHero);
 
@@ -184,6 +219,86 @@ function App() {
     <main className="shell">
       <section className="stage-wrap" aria-label="game stage">
         <canvas ref={canvasRef} width={1280} height={720} onClick={handleCanvasClick} />
+        {screen === "title" && (
+          <div className="title-screen">
+            <div className="title-mark">A</div>
+            <p className="eyebrow">Arcadia Frontier</p>
+            <h1>家門戦記</h1>
+            <p className="title-copy">4人の家門を率いて、町で備え、フィールドとダンジョンを攻略する。</p>
+            <div className="title-actions">
+              <button type="button" onClick={() => setScreen("game")}>
+                Start
+              </button>
+              <button type="button" onClick={openBarracks}>
+                バラック
+              </button>
+              <span>Enter / Space</span>
+            </div>
+          </div>
+        )}
+        {screen === "barracks" && (
+          <div className="barracks-screen">
+            <div className="barracks-head">
+              <p className="eyebrow">バラック</p>
+              <h1>バラック</h1>
+              <p>出撃枠を選んでから、控えメンバーを選ぶと入れ替わります。</p>
+            </div>
+            <div className="barracks-grid">
+              <section className="barracks-list" aria-label="出撃メンバー">
+                <h2>出撃メンバー</h2>
+                {hud.heroes.map((hero, index) => {
+                  const stats = heroStats(hero);
+                  return (
+                    <button
+                      className={`barracks-card ${index === selectedBarracksSlot ? "active" : ""}`}
+                      key={`${hero.name}-${index}`}
+                      onClick={() => setSelectedBarracksSlot(index)}
+                      type="button"
+                    >
+                      <strong>
+                        {index + 1}. {hero.name}
+                      </strong>
+                      <span>{hero.role}</span>
+                      <small>
+                        Lv {hero.level} / HP {Math.ceil(hero.hp)}/{stats.maxHp} / ATK {stats.attack}
+                      </small>
+                      <small>
+                        STR {hero.str} / VIT {hero.vit} / AGI {hero.agi} / INT {hero.int} / MEN {hero.men} / DEX {hero.dex}
+                      </small>
+                    </button>
+                  );
+                })}
+              </section>
+              <section className="barracks-list" aria-label="控えメンバー">
+                <h2>控えメンバー</h2>
+                {hud.reserveHeroes.map((hero, index) => {
+                  const stats = heroStats(hero);
+                  return (
+                    <button className="barracks-card" key={`${hero.name}-${index}`} onClick={() => swapFromReserve(index)} type="button">
+                      <strong>{hero.name}</strong>
+                      <span>{hero.role}</span>
+                      <small>
+                        Lv {hero.level} / HP {Math.ceil(hero.hp)}/{stats.maxHp} / ATK {stats.attack}
+                      </small>
+                      <small>
+                        STR {hero.str} / VIT {hero.vit} / AGI {hero.agi} / INT {hero.int} / MEN {hero.men} / DEX {hero.dex}
+                      </small>
+                    </button>
+                  );
+                })}
+              </section>
+            </div>
+            <div className="title-actions">
+              <button type="button" onClick={() => setScreen("game")}>
+                Start
+              </button>
+              <button type="button" onClick={() => setScreen("title")}>
+                Title
+              </button>
+              <span>Escでタイトルへ</span>
+            </div>
+          </div>
+        )}
         <div className="topbar">
           <div>
             <p className="eyebrow">Arcadia Frontier</p>
@@ -223,6 +338,9 @@ function App() {
             ))}
           </div>
           <div className="controls">
+            <button type="button" title="バラック" onClick={openBarracks}>
+              バラック
+            </button>
             <button type="button" title="一時停止 / 再開" onClick={toggleHold}>
               {hud.paused ? "Resume" : "Hold"}
             </button>
@@ -326,6 +444,26 @@ function App() {
               Lv {selectedHero.level} / EXP {selectedHero.exp}/{selectedHero.nextExp}
             </span>
             <span>ATK {selectedStats.attack} / HP {selectedStats.maxHp} / MP {selectedStats.maxMp}</span>
+            <div className="attribute-grid" aria-label="基礎ステータス">
+              <span>STR {selectedHero.str}</span>
+              <span>VIT {selectedHero.vit}</span>
+              <span>AGI {selectedHero.agi}</span>
+              <span>INT {selectedHero.int}</span>
+              <span>MEN {selectedHero.men}</span>
+              <span>DEX {selectedHero.dex}</span>
+              <span>詠唱 {selectedStats.skillCastSpeed.toFixed(2)}</span>
+            </div>
+            <div className="derived-grid" aria-label="派生ステータス">
+              <span>物攻 {selectedStats.attack}</span>
+              <span>重量 {selectedStats.carryWeight}</span>
+              <span>物防 {selectedStats.physicalDefense}</span>
+              <span>攻速 {selectedStats.attackSpeed.toFixed(2)}</span>
+              <span>回避 {Math.round(selectedStats.evasion * 100)}%</span>
+              <span>魔攻 {selectedStats.magicAttack}</span>
+              <span>魔防 {selectedStats.magicDefense}</span>
+              <span>MP回復 {selectedStats.mpRegen.toFixed(1)}</span>
+              <span>命中 {Math.round(selectedStats.accuracy * 100)}%</span>
+            </div>
           </div>
           {(Object.keys(selectedHero.equipment) as EquipmentSlot[]).map((slot) => {
             const item = selectedHero.equipment[slot];

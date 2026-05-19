@@ -57,6 +57,12 @@ type Hero = Point & {
   hair: string;
   accent: string;
   weapon: Weapon;
+  str: number;
+  vit: number;
+  agi: number;
+  int: number;
+  dex: number;
+  men: number;
   hp: number;
   maxHp: number;
   mp: number;
@@ -128,6 +134,7 @@ type GameState = {
   };
   orderPulse: number;
   heroes: Hero[];
+  reserveHeroes: Hero[];
   inventory: Equipment[];
   consumables: ConsumableStack[];
   enemies: Enemy[];
@@ -146,6 +153,7 @@ type HudState = Pick<
   | "gold"
   | "bossCount"
   | "heroes"
+  | "reserveHeroes"
   | "inventory"
   | "consumables"
   | "logs"
@@ -153,13 +161,34 @@ type HudState = Pick<
 >;
 
 const formations: Formation[] = [
-  { name: "デルタ", slots: [{ x: -62, y: -46 }, { x: -78, y: 42 }, { x: 18, y: 0 }, { x: -142, y: 0 }] },
-  { name: "ライン", slots: [{ x: -108, y: 0 }, { x: -36, y: -58 }, { x: -36, y: 58 }, { x: 34, y: 0 }] },
-  { name: "ヴァンガード", slots: [{ x: -44, y: -62 }, { x: -44, y: 62 }, { x: 42, y: 0 }, { x: -126, y: 0 }] },
-  { name: "ファランクス", slots: [{ x: -96, y: -38 }, { x: -96, y: 38 }, { x: -22, y: -38 }, { x: -22, y: 38 }] },
-  { name: "スカーミッシュ", slots: [{ x: -128, y: -72 }, { x: -128, y: 72 }, { x: 8, y: -44 }, { x: 8, y: 44 }] },
-  { name: "ピアース", slots: [{ x: 34, y: 0 }, { x: -42, y: -52 }, { x: -92, y: 52 }, { x: -144, y: 0 }] },
-  { name: "リトリート", slots: [{ x: -34, y: -22 }, { x: -112, y: -78 }, { x: -112, y: 78 }, { x: -176, y: 0 }] }
+  {
+    name: "スペキュレイション風",
+    slots: [{ x: 44, y: 0 }, { x: -18, y: -44 }, { x: -76, y: 42 }, { x: -146, y: 0 }]
+  },
+  {
+    name: "ワールウインド風",
+    slots: [{ x: 18, y: -72 }, { x: 18, y: 72 }, { x: -78, y: -42 }, { x: -78, y: 42 }]
+  },
+  {
+    name: "鳳天舞の陣風",
+    slots: [{ x: -24, y: 0 }, { x: -104, y: -68 }, { x: -104, y: 68 }, { x: -164, y: 0 }]
+  },
+  {
+    name: "玄武陣風",
+    slots: [{ x: -28, y: -34 }, { x: -28, y: 34 }, { x: -108, y: -34 }, { x: -108, y: 34 }]
+  },
+  {
+    name: "パワーレイズ風",
+    slots: [{ x: -18, y: 0 }, { x: -90, y: -58 }, { x: -90, y: 58 }, { x: -156, y: 0 }]
+  },
+  {
+    name: "虎穴陣風",
+    slots: [{ x: -72, y: -52 }, { x: -72, y: 52 }, { x: -12, y: 0 }, { x: -142, y: 0 }]
+  },
+  {
+    name: "デザートランス風",
+    slots: [{ x: 52, y: 0 }, { x: -48, y: -64 }, { x: -48, y: 64 }, { x: -136, y: 0 }]
+  }
 ];
 
 const skillKeys: SkillKey[] = ["e", "r", "t", "y"];
@@ -271,7 +300,7 @@ const consumableCatalog: ConsumableItem[] = [
 const initialHeroes: Hero[] = [
   {
     name: "アデリア",
-    role: "Fencer",
+    role: "ファイター",
     level: 1,
     exp: 0,
     nextExp: 100,
@@ -280,6 +309,12 @@ const initialHeroes: Hero[] = [
     hair: "#5b3027",
     accent: "#efe4d0",
     weapon: "sword",
+    str: 15,
+    vit: 13,
+    agi: 12,
+    int: 7,
+    dex: 10,
+    men: 8,
     x: 420,
     y: 292,
     hp: 168,
@@ -308,7 +343,7 @@ const initialHeroes: Hero[] = [
   },
   {
     name: "セリオ",
-    role: "Musketeer",
+    role: "ガンナー",
     level: 1,
     exp: 0,
     nextExp: 100,
@@ -317,6 +352,12 @@ const initialHeroes: Hero[] = [
     hair: "#d7d0c5",
     accent: "#8f3143",
     weapon: "rifle",
+    str: 9,
+    vit: 9,
+    agi: 11,
+    int: 8,
+    dex: 16,
+    men: 9,
     x: 350,
     y: 352,
     hp: 126,
@@ -345,7 +386,7 @@ const initialHeroes: Hero[] = [
   },
   {
     name: "ミレーヌ",
-    role: "Elementalist",
+    role: "ウィザード",
     level: 1,
     exp: 0,
     nextExp: 100,
@@ -354,6 +395,12 @@ const initialHeroes: Hero[] = [
     hair: "#f1c16e",
     accent: "#fff0d5",
     weapon: "staff",
+    str: 6,
+    vit: 8,
+    agi: 9,
+    int: 17,
+    dex: 11,
+    men: 14,
     x: 372,
     y: 252,
     hp: 112,
@@ -382,7 +429,7 @@ const initialHeroes: Hero[] = [
   },
   {
     name: "イリス",
-    role: "Scout",
+    role: "ヒーラー",
     level: 1,
     exp: 0,
     nextExp: 100,
@@ -391,6 +438,12 @@ const initialHeroes: Hero[] = [
     hair: "#334039",
     accent: "#f4f0dc",
     weapon: "scout",
+    str: 7,
+    vit: 10,
+    agi: 16,
+    int: 13,
+    dex: 13,
+    men: 16,
     x: 304,
     y: 292,
     hp: 104,
@@ -419,6 +472,89 @@ const initialHeroes: Hero[] = [
   }
 ];
 
+function createReserveHeroes(): Hero[] {
+  const reserves = structuredClone([initialHeroes[0], initialHeroes[1], initialHeroes[2]]);
+
+  reserves[0] = {
+    ...reserves[0],
+    name: "Leona",
+    role: "ファイター",
+    color: "#8a4f52",
+    trim: "#ffd7a2",
+    hair: "#3e2c2e",
+    accent: "#f4e2c0",
+    hp: 186,
+    maxHp: 186,
+    mp: 54,
+    maxMp: 76,
+    str: 16,
+    vit: 16,
+    agi: 9,
+    int: 6,
+    dex: 9,
+    men: 9,
+    attack: 22,
+    speed: 152,
+    x: 0,
+    y: 0,
+    skillCooldowns: emptySkillCooldowns()
+  };
+
+  reserves[1] = {
+    ...reserves[1],
+    name: "Noel",
+    role: "ガンナー",
+    color: "#445d79",
+    trim: "#cde6ff",
+    hair: "#1f2735",
+    accent: "#e8eef5",
+    hp: 118,
+    maxHp: 118,
+    mp: 84,
+    maxMp: 106,
+    str: 8,
+    vit: 8,
+    agi: 12,
+    int: 9,
+    dex: 18,
+    men: 8,
+    attack: 24,
+    range: 284,
+    speed: 136,
+    x: 0,
+    y: 0,
+    skillCooldowns: emptySkillCooldowns()
+  };
+
+  reserves[2] = {
+    ...reserves[2],
+    name: "Fiona",
+    role: "ウィザード",
+    color: "#5f4b91",
+    trim: "#d8c6ff",
+    hair: "#e8d49c",
+    accent: "#fff4de",
+    hp: 104,
+    maxHp: 104,
+    mp: 122,
+    maxMp: 148,
+    str: 5,
+    vit: 7,
+    agi: 10,
+    int: 18,
+    dex: 12,
+    men: 15,
+    attack: 15,
+    range: 196,
+    speed: 138,
+    x: 0,
+    y: 0,
+    skillCooldowns: emptySkillCooldowns()
+  };
+
+  return reserves;
+}
+
 function createGameState(): GameState {
   return {
     view: { w: 1280, h: 720 },
@@ -441,6 +577,7 @@ function createGameState(): GameState {
     },
     orderPulse: 0,
     heroes: structuredClone(initialHeroes),
+    reserveHeroes: createReserveHeroes(),
     inventory: [],
     consumables: [],
     enemies: [],
@@ -470,13 +607,59 @@ function equipmentBonus(hero: Hero): Required<EquipmentBonus> {
 function heroStats(hero: Hero) {
   const bonus = equipmentBonus(hero);
   const levelBonus = hero.level - 1;
+  const physicalAttackBonus = Math.floor(hero.str * 0.7 + hero.dex * 0.2);
+  const carryWeight = 25 + hero.str * 4;
+  const physicalDefense = Math.floor(hero.vit * 0.8 + hero.str * 0.2);
+  const attributeHp = hero.vit * 5 + Math.floor(hero.str * 1.2);
+  const attackSpeed = 1 + hero.agi * 0.018 + hero.dex * 0.01;
+  const evasion = clamp(0.04 + hero.agi * 0.006, 0.04, 0.32);
+  const magicAttackBonus = Math.floor(hero.int * 0.85 + hero.men * 0.15);
+  const magicDefense = Math.floor(hero.men * 0.8 + hero.vit * 0.2);
+  const mpRegen = 3.2 + hero.men * 0.12;
+  const attributeMp = hero.int * 3 + hero.men * 2;
+  const accuracy = clamp(0.72 + hero.dex * 0.012, 0.72, 0.98);
+  const skillCastSpeed = clamp(1 + hero.dex * 0.018, 1, 1.5);
+  const physicalAttack = hero.attack + bonus.attack + physicalAttackBonus + levelBonus * 3;
+  const magicAttack = hero.attack + bonus.attack + magicAttackBonus + levelBonus * 3;
+  const primaryAttack = hero.weapon === "staff" || hero.weapon === "scout" ? magicAttack : physicalAttack;
   return {
-    attack: hero.attack + bonus.attack + levelBonus * 3,
-    maxHp: hero.maxHp + bonus.maxHp + levelBonus * 18,
-    maxMp: hero.maxMp + bonus.maxMp + levelBonus * 7,
+    attack: primaryAttack,
+    maxHp: hero.maxHp + bonus.maxHp + attributeHp + levelBonus * 18,
+    maxMp: hero.maxMp + bonus.maxMp + attributeMp + levelBonus * 7,
     range: hero.range + bonus.range + Math.floor(levelBonus / 3) * 4,
-    speed: hero.speed + bonus.speed + levelBonus * 2
+    speed: hero.speed + bonus.speed + levelBonus * 2,
+    physicalAttack,
+    carryWeight,
+    physicalDefense,
+    attackSpeed,
+    evasion,
+    magicAttack,
+    magicDefense,
+    mpRegen,
+    accuracy,
+    skillCastSpeed
   };
+}
+
+function growHeroAttributes(hero: Hero) {
+  if (hero.weapon === "sword") {
+    hero.str += 2;
+    hero.vit += 1;
+    hero.agi += 1;
+  } else if (hero.weapon === "rifle") {
+    hero.dex += 2;
+    hero.agi += 1;
+    hero.men += 1;
+  } else if (hero.weapon === "staff") {
+    hero.int += 2;
+    hero.dex += 1;
+    hero.men += 1;
+  } else {
+    hero.int += 1;
+    hero.agi += 1;
+    hero.dex += 1;
+    hero.men += 1;
+  }
 }
 
 function expReward(enemy: Enemy) {
@@ -492,6 +675,7 @@ function grantPartyExp(state: GameState, amount: number) {
     while (hero.exp >= hero.nextExp) {
       hero.exp -= hero.nextExp;
       hero.level += 1;
+      growHeroAttributes(hero);
       hero.nextExp = Math.floor(hero.nextExp * 1.28 + 42);
       const stats = heroStats(hero);
       hero.hp = stats.maxHp;
@@ -501,6 +685,37 @@ function grantPartyExp(state: GameState, amount: number) {
       state.status = `${hero.name}がLv ${hero.level}になりました。`;
     }
   }
+}
+
+function recoverAtTown(state: GameState, penalty = false) {
+  if (penalty) {
+    state.gold = Math.floor(state.gold * 0.9);
+    for (const hero of state.heroes) {
+      hero.exp = Math.floor(hero.exp * 0.9);
+    }
+  }
+
+  state.area = "town";
+  state.paused = false;
+  state.enemies = [];
+  state.particles = [];
+  state.targetPoint = null;
+  state.spawnTimer = 1.1;
+  state.bossTimer = areas.field.bossInterval;
+  for (const [heroIndex, hero] of state.heroes.entries()) {
+    const stats = heroStats(hero);
+    setHeroHp(state, hero, heroIndex, Math.max(1, Math.floor(stats.maxHp * 0.55)));
+    hero.mp = Math.max(hero.mp, Math.floor(stats.maxMp * 0.45));
+    hero.cooldown = 0;
+    for (const key of skillKeys) {
+      hero.skillCooldowns[key] = 0;
+    }
+    moveHeroToFormationSlot(state, heroIndex);
+  }
+  addLog(state, penalty ? "Party wiped out. Returned to town." : "Recovered in town.");
+  state.status = penalty
+    ? "Party wiped out. EXP and Gold decreased by 10%, then returned to town."
+    : "The party recovered in town.";
 }
 
 function distance(a: Point, b: Point) {
@@ -553,6 +768,15 @@ function damage(state: GameState, target: Enemy | Hero, amount: number, color = 
   });
 }
 
+function damageWithAccuracy(state: GameState, target: Enemy | Hero, accuracy: number, amount: number, color = "#ffd47d") {
+  if (Math.random() > accuracy) {
+    state.particles.push({ x: target.x, y: target.y - 28, text: "miss", color: "#d9c7aa", life: 0.45 });
+    return false;
+  }
+  damage(state, target, amount, color);
+  return true;
+}
+
 function randomSpawnPoint(state: GameState) {
   let point = { x: 180, y: 160 };
   for (let i = 0; i < 12; i += 1) {
@@ -593,15 +817,20 @@ function spawnEnemy(state: GameState, boss = false) {
 }
 
 function currentFormationAnchor(state: GameState) {
-  const aliveHeroes = state.heroes.filter((hero) => hero.hp > 0);
-  const heroes = aliveHeroes.length > 0 ? aliveHeroes : state.heroes;
-  const heroCenter = heroes.reduce(
-    (center, hero) => ({ x: center.x + hero.x / heroes.length, y: center.y + hero.y / heroes.length }),
+  const aliveEntries = state.heroes
+    .map((hero, index) => ({ hero, index }))
+    .filter(({ hero }) => hero.hp > 0);
+  const entries = aliveEntries.length > 0 ? aliveEntries : state.heroes.map((hero, index) => ({ hero, index }));
+  const heroCenter = entries.reduce(
+    (center, { hero }) => ({ x: center.x + hero.x / entries.length, y: center.y + hero.y / entries.length }),
     { x: 0, y: 0 }
   );
   const slots = formations[state.formation].slots;
-  const slotCenter = slots.reduce(
-    (center, slot) => ({ x: center.x + slot.x / slots.length, y: center.y + slot.y / slots.length }),
+  const slotCenter = entries.reduce(
+    (center, { index }) => ({
+      x: center.x + slots[index].x / entries.length,
+      y: center.y + slots[index].y / entries.length
+    }),
     { x: 0, y: 0 }
   );
 
@@ -609,6 +838,23 @@ function currentFormationAnchor(state: GameState) {
     x: heroCenter.x - slotCenter.x,
     y: heroCenter.y - slotCenter.y
   });
+}
+
+function moveHeroToFormationSlot(state: GameState, heroIndex: number) {
+  const slot = formations[state.formation].slots[heroIndex];
+  const anchor = currentFormationAnchor(state);
+  const target = clampFormationAnchor(state, { x: anchor.x, y: anchor.y });
+  const hero = state.heroes[heroIndex];
+  hero.x = clamp(target.x + slot.x, 80, state.view.w - 160);
+  hero.y = clamp(target.y + slot.y, 96, combatBottom(state));
+}
+
+function setHeroHp(state: GameState, hero: Hero, heroIndex: number, hp: number) {
+  const wasDown = hero.hp <= 0;
+  const stats = heroStats(hero);
+  const nextHp = clamp(hp, 0, stats.maxHp);
+  if (wasDown && nextHp > 0) moveHeroToFormationSlot(state, heroIndex);
+  hero.hp = nextHp;
 }
 
 function clampFormationAnchor(state: GameState, anchor: Point) {
@@ -668,64 +914,68 @@ function useSkill(state: GameState, key: SkillKey) {
   }
 
   hero.mp -= skill.cost;
-  hero.skillCooldowns[key] = skill.cooldown;
+  hero.skillCooldowns[key] = skill.cooldown / heroStats(hero).skillCastSpeed;
   addLog(state, `${key.toUpperCase()} ${hero.name}：${skill.name}`);
 
   const target = nearestEnemy(state, hero);
+  const stats = heroStats(hero);
+  const physicalPower = stats.physicalAttack;
+  const magicPower = stats.magicAttack;
+  const healPower = Math.floor(magicPower * 0.8);
 
   if (skill.id === "blade-lunge" && target) {
     moveToward(hero, target, 1, 3.2);
-    damage(state, target, 72, "#fff0a6");
+    damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.75, "#fff0a6");
   }
   if (skill.id === "blade-cleave") {
     const center = target ?? hero;
-    for (const enemy of enemiesNear(state, center, 98)) damage(state, enemy, 44, "#ffd28a");
+    for (const enemy of enemiesNear(state, center, 98)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.08, "#ffd28a");
   }
   if (skill.id === "blade-guard") {
-    hero.hp = clamp(hero.hp + 38, 0, heroStats(hero).maxHp);
+    setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 24 + Math.floor(physicalPower * 0.35));
     state.particles.push({ x: hero.x, y: hero.y - 30, text: "guard", color: "#fff0a6", life: 0.9 });
   }
   if (skill.id === "blade-rally") {
-    for (const ally of state.heroes) {
-      ally.hp = clamp(ally.hp + 22, 0, heroStats(ally).maxHp);
+    for (const [allyIndex, ally] of state.heroes.entries()) {
+      setHeroHp(state, ally, allyIndex, ally.hp + 12 + Math.floor(physicalPower * 0.22));
       ally.mp = clamp(ally.mp + 12, 0, heroStats(ally).maxMp);
       state.particles.push({ x: ally.x, y: ally.y - 30, text: "+", color: "#ffe2a0", life: 0.9 });
     }
   }
 
-  if (skill.id === "rifle-shot" && target) damage(state, target, 58, "#d9ecff");
+  if (skill.id === "rifle-shot" && target) damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.45, "#d9ecff");
   if (skill.id === "rifle-grenade" && target) {
-    for (const enemy of enemiesNear(state, target, 112)) damage(state, enemy, 39, "#ffc27a");
+    for (const enemy of enemiesNear(state, target, 112)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.95, "#ffc27a");
   }
   if (skill.id === "rifle-smoke") {
     for (const enemy of enemiesNear(state, hero, 190)) {
       enemy.speed *= 0.72;
-      damage(state, enemy, 14, "#c7d5e8");
+      damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.34, "#c7d5e8");
     }
   }
   if (skill.id === "rifle-volley") {
     for (const enemy of state.enemies) {
-      if (Math.abs(enemy.y - hero.y) < 94) damage(state, enemy, 47, "#d9ecff");
+      if (Math.abs(enemy.y - hero.y) < 94) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#d9ecff");
     }
   }
 
   if (skill.id === "staff-heal") {
-    for (const ally of state.heroes) {
-      ally.hp = clamp(ally.hp + 32, 0, heroStats(ally).maxHp);
+    for (const [allyIndex, ally] of state.heroes.entries()) {
+      setHeroHp(state, ally, allyIndex, ally.hp + 18 + healPower);
       state.particles.push({ x: ally.x, y: ally.y - 28, text: "+", color: "#aef2d0", life: 0.9 });
     }
   }
   if (skill.id === "staff-flare" && target) {
-    for (const enemy of enemiesNear(state, target, 125)) damage(state, enemy, 43, "#ffb16f");
+    for (const enemy of enemiesNear(state, target, 125)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 1.08, "#ffb16f");
   }
   if (skill.id === "staff-mana") {
     for (const ally of state.heroes) {
-      ally.mp = clamp(ally.mp + 28, 0, heroStats(ally).maxMp);
+      ally.mp = clamp(ally.mp + 14 + Math.floor(magicPower * 0.45), 0, heroStats(ally).maxMp);
       state.particles.push({ x: ally.x, y: ally.y - 28, text: "mp", color: "#86d8e5", life: 0.9 });
     }
   }
   if (skill.id === "staff-starfall") {
-    for (const enemy of state.enemies) damage(state, enemy, 36, "#d7b5ff");
+    for (const enemy of state.enemies) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.9, "#d7b5ff");
   }
 
   if (skill.id === "scout-firstaid") {
@@ -733,13 +983,13 @@ function useSkill(state: GameState, key: SkillKey) {
       .filter((ally) => ally.hp > 0)
       .sort((a, b) => a.hp / heroStats(a).maxHp - b.hp / heroStats(b).maxHp)[0];
     if (targetAlly) {
-      targetAlly.hp = clamp(targetAlly.hp + 54, 0, heroStats(targetAlly).maxHp);
+      setHeroHp(state, targetAlly, state.heroes.indexOf(targetAlly), targetAlly.hp + 18 + healPower);
       state.particles.push({ x: targetAlly.x, y: targetAlly.y - 30, text: "+aid", color: "#b7f0cf", life: 1 });
     }
   }
   if (skill.id === "scout-regeneration") {
-    for (const ally of state.heroes) {
-      ally.hp = clamp(ally.hp + 24, 0, heroStats(ally).maxHp);
+    for (const [allyIndex, ally] of state.heroes.entries()) {
+      setHeroHp(state, ally, allyIndex, ally.hp + 10 + Math.floor(healPower * 0.55));
       ally.mp = clamp(ally.mp + 8, 0, heroStats(ally).maxMp);
       state.particles.push({ x: ally.x, y: ally.y - 28, text: "regen", color: "#b7f0cf", life: 0.9 });
     }
@@ -752,12 +1002,12 @@ function useSkill(state: GameState, key: SkillKey) {
     }
   }
   if (skill.id === "scout-sanctuary") {
-    for (const ally of state.heroes) {
-      ally.hp = clamp(ally.hp + 46, 0, heroStats(ally).maxHp);
+    for (const [allyIndex, ally] of state.heroes.entries()) {
+      setHeroHp(state, ally, allyIndex, ally.hp + 16 + Math.floor(healPower * 0.75));
       ally.mp = clamp(ally.mp + 18, 0, heroStats(ally).maxMp);
       state.particles.push({ x: ally.x, y: ally.y - 32, text: "sanct", color: "#fff0a6", life: 1 });
     }
-    for (const enemy of enemiesNear(state, hero, 170)) damage(state, enemy, 26, "#fff0a6");
+    for (const enemy of enemiesNear(state, hero, 170)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.62, "#fff0a6");
   }
 }
 
@@ -768,9 +1018,7 @@ function updateGame(state: GameState, dt: number) {
 
   const aliveHeroes = state.heroes.filter((hero) => hero.hp > 0);
   if (aliveHeroes.length === 0) {
-    state.paused = true;
-    state.status = "家門は全滅しました。ページを再読み込みすると再挑戦できます。";
-    addLog(state, "開拓地に静寂が戻った。");
+    recoverAtTown(state, true);
     return;
   }
 
@@ -788,10 +1036,10 @@ function updateGame(state: GameState, dt: number) {
 
   if (state.area === "town") {
     state.enemies = [];
-    for (const hero of state.heroes) {
+    for (const [heroIndex, hero] of state.heroes.entries()) {
       const stats = heroStats(hero);
-      hero.hp = clamp(hero.hp + dt * 14, 0, stats.maxHp);
-      hero.mp = clamp(hero.mp + dt * 18, 0, stats.maxMp);
+      setHeroHp(state, hero, heroIndex, hero.hp + dt * 14);
+      hero.mp = clamp(hero.mp + dt * (18 + stats.mpRegen), 0, stats.maxMp);
       hero.cooldown = Math.max(0, hero.cooldown - dt * 1.4);
       for (const key of skillKeys) {
         hero.skillCooldowns[key] = Math.max(0, hero.skillCooldowns[key] - dt * 1.4);
@@ -823,8 +1071,8 @@ function updateGame(state: GameState, dt: number) {
       hero.skillCooldowns[key] = Math.max(0, hero.skillCooldowns[key] - dt);
     }
     const stats = heroStats(hero);
-    hero.hp = clamp(hero.hp, 0, stats.maxHp);
-    hero.mp = clamp(hero.mp + dt * 4.5, 0, stats.maxMp);
+    setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp);
+    hero.mp = clamp(hero.mp + dt * stats.mpRegen, 0, stats.maxMp);
 
     const target = nearestEnemy(state, hero);
     if (!target) continue;
@@ -832,9 +1080,11 @@ function updateGame(state: GameState, dt: number) {
     if (d > stats.range && !state.targetPoint && !keyboardMoved) {
       moveToward(hero, target, dt, 0.62, stats.speed);
     } else if (d <= stats.range && hero.cooldown <= 0) {
-      damage(state, target, stats.attack + Math.random() * 6, hero.trim);
-      hero.cooldown = hero.weapon === "rifle" ? 1.02 : 0.76;
-      state.particles.push({ x: hero.x, y: hero.y - 32, text: "hit", color: hero.trim, life: 0.45 });
+      if (damageWithAccuracy(state, target, stats.accuracy, stats.attack + Math.random() * 6, hero.trim)) {
+        state.particles.push({ x: hero.x, y: hero.y - 32, text: "hit", color: hero.trim, life: 0.45 });
+      }
+      const baseCooldown = hero.weapon === "rifle" ? 1.02 : 0.76;
+      hero.cooldown = baseCooldown / stats.attackSpeed;
     }
   }
 
@@ -844,7 +1094,13 @@ function updateGame(state: GameState, dt: number) {
     if (distance(enemy, target) > enemy.radius + 28) {
       moveToward(enemy, target, dt);
     } else if (enemy.cooldown <= 0) {
-      damage(state, target, enemy.attack + Math.random() * 4, "#ff8d75");
+      const targetStats = heroStats(target);
+      if (Math.random() < targetStats.evasion) {
+        state.particles.push({ x: target.x, y: target.y - 28, text: "evade", color: "#d9ecff", life: 0.45 });
+      } else {
+        const mitigatedDamage = Math.max(1, enemy.attack + Math.random() * 4 - targetStats.physicalDefense * 0.35);
+        damage(state, target, mitigatedDamage, "#ff8d75");
+      }
       enemy.cooldown = 1.28;
     }
   }
@@ -901,7 +1157,7 @@ function upgradeEquipment(state: GameState, slot: EquipmentSlot) {
   state.gold -= cost;
   item.level += 1;
   const stats = heroStats(hero);
-  hero.hp = clamp(hero.hp + (item.bonus.maxHp ?? 0), 0, stats.maxHp);
+  setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + (item.bonus.maxHp ?? 0));
   hero.mp = clamp(hero.mp + (item.bonus.maxMp ?? 0), 0, stats.maxMp);
   addLog(state, `${hero.name} upgraded ${item.name} to +${item.level}.`);
   state.status = `${item.name} is now +${item.level}.`;
@@ -937,7 +1193,7 @@ function equipInventoryItem(state: GameState, index: number) {
   hero.equipment[item.slot] = item;
   state.inventory.splice(index, 1, previous);
   const stats = heroStats(hero);
-  hero.hp = clamp(hero.hp, 0, stats.maxHp);
+  setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp);
   hero.mp = clamp(hero.mp, 0, stats.maxMp);
   addLog(state, `${hero.name} equipped ${item.name}.`);
   state.status = `${hero.name} changed ${item.slot} to ${item.name}.`;
@@ -972,9 +1228,8 @@ function useConsumable(state: GameState, itemId: ConsumableId) {
     state.status = `${hero.name}は戦闘不能です。`;
     return;
   }
-  const stats = heroStats(hero);
   const before = hero.hp;
-  hero.hp = clamp(hero.hp + stack.item.healHp, 0, stats.maxHp);
+  setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + stack.item.healHp);
   stack.count -= 1;
   if (stack.count <= 0) {
     state.consumables = state.consumables.filter((candidate) => candidate.count > 0);
@@ -1020,7 +1275,7 @@ function useTownShop(state: GameState, shop: ShopId) {
   if (!spendGold(state, cost, shops.inn.name)) return;
   for (const hero of state.heroes) {
     const stats = heroStats(hero);
-    hero.hp = stats.maxHp;
+    setHeroHp(state, hero, state.heroes.indexOf(hero), stats.maxHp);
     hero.mp = stats.maxMp;
     hero.cooldown = 0;
     for (const key of skillKeys) {
@@ -1061,6 +1316,31 @@ class GameEngine {
     queueFormationMove(this.state);
   }
 
+  swapPartyMember(activeIndex: number, reserveIndex: number) {
+    const activeSlot = Math.trunc(clamp(activeIndex, 0, this.state.heroes.length - 1));
+    const reserveSlot = Math.trunc(clamp(reserveIndex, 0, this.state.reserveHeroes.length - 1));
+    const activeHero = this.state.heroes[activeSlot];
+    const reserveHero = this.state.reserveHeroes[reserveSlot];
+    if (!activeHero || !reserveHero) return;
+
+    const anchor = currentFormationAnchor(this.state);
+    const formationSlot = formations[this.state.formation].slots[activeSlot];
+    const incoming = structuredClone(reserveHero);
+    const outgoing = structuredClone(activeHero);
+    incoming.x = clamp(anchor.x + formationSlot.x, 80, this.state.view.w - 160);
+    incoming.y = clamp(anchor.y + formationSlot.y, 96, combatBottom(this.state));
+    outgoing.x = 0;
+    outgoing.y = 0;
+
+    this.state.heroes[activeSlot] = incoming;
+    this.state.reserveHeroes[reserveSlot] = outgoing;
+    this.state.selected = activeSlot;
+    this.state.targetPoint = null;
+    this.state.orderPulse = 0.55;
+    addLog(this.state, `${incoming.name} joined the party.`);
+    this.state.status = `${incoming.name} is now in slot ${activeSlot + 1}.`;
+  }
+
   changeArea(area: AreaId) {
     if (this.state.area === area) return;
     this.state.area = area;
@@ -1074,7 +1354,7 @@ class GameEngine {
     if (area === "town") {
       for (const hero of this.state.heroes) {
         const stats = heroStats(hero);
-        hero.hp = clamp(hero.hp + 34, 0, stats.maxHp);
+        setHeroHp(this.state, hero, this.state.heroes.indexOf(hero), hero.hp + 34);
         hero.mp = clamp(hero.mp + 28, 0, stats.maxMp);
       }
     }
@@ -1141,6 +1421,7 @@ class GameEngine {
     gold: state.gold,
     bossCount: state.bossCount,
     heroes: structuredClone(state.heroes),
+    reserveHeroes: structuredClone(state.reserveHeroes),
     inventory: structuredClone(state.inventory),
     consumables: structuredClone(state.consumables),
     logs: [...state.logs],

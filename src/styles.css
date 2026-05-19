@@ -49,6 +49,135 @@ canvas {
   cursor: crosshair;
 }
 
+.title-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  padding: 28px;
+  text-align: center;
+  background:
+    linear-gradient(180deg, rgba(18, 18, 28, 0.38), rgba(16, 14, 22, 0.88)),
+    radial-gradient(circle at 50% 42%, rgba(232, 191, 112, 0.22), transparent 34%);
+}
+
+.title-mark {
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 209, 118, 0.86);
+  color: #ffd77e;
+  background: rgba(35, 29, 42, 0.82);
+  font-family: Georgia, serif;
+  font-size: 46px;
+}
+
+.title-screen h1 {
+  font-size: 64px;
+}
+
+.title-copy {
+  width: min(520px, 88vw);
+  color: #ead8b9;
+  line-height: 1.75;
+}
+
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.title-actions button {
+  min-width: 156px;
+  height: 48px;
+  border: 1px solid #ffd176;
+  background: linear-gradient(180deg, #ffd176, #d59c49);
+  color: #1e1b24;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.title-actions span {
+  color: #cdbb9d;
+  font-size: 13px;
+}
+
+.barracks-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 18px;
+  padding: 30px;
+  overflow: auto;
+  background:
+    linear-gradient(180deg, rgba(18, 18, 28, 0.48), rgba(16, 14, 22, 0.92)),
+    rgba(24, 24, 36, 0.92);
+}
+
+.barracks-head {
+  display: grid;
+  gap: 8px;
+  width: min(860px, 100%);
+  text-align: center;
+}
+
+.barracks-head p:last-child {
+  color: #ead8b9;
+  line-height: 1.6;
+}
+
+.barracks-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 420px));
+  gap: 16px;
+  width: min(880px, 100%);
+}
+
+.barracks-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.barracks-list h2 {
+  font-size: 20px;
+}
+
+.barracks-card {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-height: 78px;
+  padding: 12px 14px;
+  border: 1px solid rgba(227, 181, 93, 0.42);
+  background: linear-gradient(180deg, rgba(37, 37, 53, 0.94), rgba(24, 24, 36, 0.98));
+  color: #f9ead5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.barracks-card.active {
+  border-color: #ffd176;
+  box-shadow: inset 0 0 0 1px rgba(255, 214, 124, 0.36), 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.barracks-card span {
+  color: #e4b96a;
+  font-size: 13px;
+}
+
+.barracks-card small {
+  color: #cdbb9d;
+}
+
 .topbar,
 .hud {
   position: absolute;
@@ -353,6 +482,27 @@ h2 {
   font-size: 12px;
 }
 
+.attribute-grid,
+.derived-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px 8px;
+  margin-top: 4px;
+}
+
+.attribute-grid span,
+.derived-grid span {
+  padding: 3px 6px;
+  border: 1px solid rgba(231, 193, 120, 0.22);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f8e6c2;
+  font-size: 12px;
+}
+
+.derived-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .equipment-item {
   display: flex;
   align-items: center;
@@ -416,6 +566,10 @@ h2 {
 
   .party {
     width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .barracks-grid {
     grid-template-columns: 1fr;
   }
 

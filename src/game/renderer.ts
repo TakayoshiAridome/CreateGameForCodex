@@ -53,8 +53,43 @@ function resizeThreeView(view: ThreeView, state: GameState, canvas: HTMLCanvasEl
   rebuildField(view, state);
 }
 
+function disposeMaterial(material: THREE.Material) {
+  const texturedMaterial = material as THREE.Material & {
+    map?: THREE.Texture;
+  };
+  texturedMaterial.map?.dispose();
+  material.dispose();
+}
+
+function disposeObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    mesh.geometry?.dispose();
+    const material = mesh.material;
+    if (Array.isArray(material)) {
+      for (const item of material) disposeMaterial(item);
+    } else if (material) {
+      disposeMaterial(material);
+    }
+  });
+}
+
+function clearGroup(group: THREE.Group) {
+  for (const child of [...group.children]) {
+    disposeObject(child);
+    group.remove(child);
+  }
+}
+
+function disposeThreeView(view: ThreeView) {
+  clearGroup(view.field);
+  clearGroup(view.units);
+  clearGroup(view.effects);
+  view.renderer.dispose();
+}
+
 function rebuildField(view: ThreeView, state: GameState) {
-  view.field.clear();
+  clearGroup(view.field);
   const width = state.view.w / WORLD_SCALE;
   const depth = state.view.h / WORLD_SCALE;
   const groundColor = state.area === "town" ? 0x6d6f59 : state.area === "dungeon" ? 0x393446 : 0x7b6747;
@@ -271,8 +306,8 @@ function createTextSprite(text: string, color: string, opacity: number) {
 }
 
 function renderGame(view: ThreeView, state: GameState) {
-  view.units.clear();
-  view.effects.clear();
+  clearGroup(view.units);
+  clearGroup(view.effects);
 
   if (state.targetPoint) {
     const marker = new THREE.Mesh(
@@ -311,32 +346,77 @@ function renderGame(view: ThreeView, state: GameState) {
 }
 
 class ThreeGameRenderer {
-  private readonly view: ThreeView;
+  private view: ThreeView | null = null;
   private dpr = 1;
   private renderedArea: AreaId | null = null;
+  private contextLost = false;
+  private disposed = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly state: GameState
   ) {
-    this.view = createThreeView(canvas);
+    this.canvas.addEventListener("webglcontextlost", this.handleContextLost);
+    this.canvas.addEventListener("webglcontextrestored", this.handleContextRestored);
+    this.recreateView();
+  }
+
+  private readonly handleContextLost = (event: Event) => {
+    event.preventDefault();
+    this.contextLost = true;
+    this.state.status = "WebGL context lost. Waiting for restore.";
+  };
+
+  private readonly handleContextRestored = () => {
+    if (this.disposed) return;
+    this.state.status = "WebGL context restored. Rebuilding preview.";
+    this.recreateView();
+  };
+
+  private recreateView() {
+    if (this.disposed) return;
+    try {
+      if (this.view) disposeThreeView(this.view);
+      this.view = createThreeView(this.canvas);
+      this.contextLost = false;
+      this.renderedArea = null;
+      this.resize();
+    } catch (error) {
+      console.warn("Failed to initialize WebGL renderer.", error);
+      this.view = null;
+      this.contextLost = true;
+      this.state.status = "WebGL renderer could not be initialized. Reloading the preview may recover it.";
+    }
   }
 
   resize() {
+    if (!this.view || this.contextLost) return;
     this.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     resizeThreeView(this.view, this.state, this.canvas, this.dpr);
   }
 
   render() {
+    if (!this.view || this.contextLost) return;
     if (this.renderedArea !== this.state.area) {
       rebuildField(this.view, this.state);
       this.renderedArea = this.state.area;
     }
-    renderGame(this.view, this.state);
+    try {
+      renderGame(this.view, this.state);
+    } catch (error) {
+      console.warn("WebGL render failed.", error);
+      this.contextLost = true;
+      this.state.status = "WebGL rendering stopped. Waiting for context restore.";
+    }
   }
 
   dispose() {
-    this.view.renderer.dispose();
+    this.disposed = true;
+    this.canvas.removeEventListener("webglcontextlost", this.handleContextLost);
+    this.canvas.removeEventListener("webglcontextrestored", this.handleContextRestored);
+    if (!this.view) return;
+    disposeThreeView(this.view);
+    this.view = null;
   }
 }
 
