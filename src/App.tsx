@@ -6,6 +6,8 @@ import {
   areas,
   clamp,
   consumableCatalog,
+  elementColors,
+  elementLabels,
   equipmentCatalog,
   formations,
   heroStats,
@@ -26,6 +28,9 @@ type Screen = "title" | "barracks" | "game";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rendererRef = useRef<ThreeGameRenderer | null>(null);
+  const cameraDragRef = useRef({ active: false, dragged: false, lastX: 0, lastY: 0, startX: 0, startY: 0 });
+  const suppressCanvasClickRef = useRef(false);
   const engineRef = useRef<GameEngine>(new GameEngine());
   const [hud, setHud] = useState<HudState>(() => engineRef.current.snapshot());
   const [screen, setScreen] = useState<Screen>("title");
@@ -42,6 +47,7 @@ function App() {
     if (!canvas) return;
     const engine = engineRef.current;
     const renderer = new ThreeGameRenderer(canvas, engine.state);
+    rendererRef.current = renderer;
     let animationId = 0;
     let hudTimer = 0;
 
@@ -69,6 +75,7 @@ function App() {
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", resize);
       renderer.dispose();
+      rendererRef.current = null;
     };
   }, []);
 
@@ -122,6 +129,10 @@ function App() {
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!started) return;
+    if (suppressCanvasClickRef.current) {
+      suppressCanvasClickRef.current = false;
+      return;
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
     const engine = engineRef.current;
@@ -150,6 +161,42 @@ function App() {
     const engine = engineRef.current;
     engine.changeFormation();
     setHud(engine.snapshot());
+  };
+
+  const handleCanvasWheel = (event: React.WheelEvent<HTMLCanvasElement>) => {
+    if (!started) return;
+    event.preventDefault();
+    rendererRef.current?.zoomBy(event.deltaY);
+  };
+
+  const handleCanvasMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!started || event.button !== 0) return;
+    suppressCanvasClickRef.current = false;
+    cameraDragRef.current = {
+      active: true,
+      dragged: false,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY
+    };
+  };
+
+  const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const drag = cameraDragRef.current;
+    if (!started || !drag.active) return;
+    const totalDistance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+    if (totalDistance < 4 && !drag.dragged) return;
+    drag.dragged = true;
+    rendererRef.current?.rotateCamera(event.clientX - drag.lastX, event.clientY - drag.lastY);
+    drag.lastX = event.clientX;
+    drag.lastY = event.clientY;
+    suppressCanvasClickRef.current = true;
+  };
+
+  const stopCanvasDrag = () => {
+    if (cameraDragRef.current.dragged) suppressCanvasClickRef.current = true;
+    cameraDragRef.current.active = false;
   };
 
   const changeArea = (area: AreaId) => {
@@ -218,7 +265,17 @@ function App() {
   return (
     <main className="shell">
       <section className="stage-wrap" aria-label="game stage">
-        <canvas ref={canvasRef} width={1280} height={720} onClick={handleCanvasClick} />
+        <canvas
+          ref={canvasRef}
+          width={1280}
+          height={720}
+          onClick={handleCanvasClick}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseLeave={stopCanvasDrag}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={stopCanvasDrag}
+          onWheel={handleCanvasWheel}
+        />
         {screen === "title" && (
           <div className="title-screen">
             <div className="title-mark">A</div>
@@ -259,6 +316,7 @@ function App() {
                         {index + 1}. {hero.name}
                       </strong>
                       <span>{hero.role}</span>
+                      <span style={{ color: elementColors[hero.element] }}>属性 {elementLabels[hero.element]}</span>
                       <small>
                         Lv {hero.level} / HP {Math.ceil(hero.hp)}/{stats.maxHp} / ATK {stats.attack}
                       </small>
@@ -277,6 +335,7 @@ function App() {
                     <button className="barracks-card" key={`${hero.name}-${index}`} onClick={() => swapFromReserve(index)} type="button">
                       <strong>{hero.name}</strong>
                       <span>{hero.role}</span>
+                      <span style={{ color: elementColors[hero.element] }}>属性 {elementLabels[hero.element]}</span>
                       <small>
                         Lv {hero.level} / HP {Math.ceil(hero.hp)}/{stats.maxHp} / ATK {stats.attack}
                       </small>
@@ -324,7 +383,9 @@ function App() {
                   <strong>{hero.name}</strong>
                   <span className="role">Lv {hero.level}</span>
                 </span>
-                <span className="member-meta">{hero.role}</span>
+                <span className="member-meta">
+                  {hero.role} / {elementLabels[hero.element]}
+                </span>
                 <span className="bar">
                   <span className="fill" style={{ width: `${clamp(hero.hp / heroStats(hero).maxHp, 0, 1) * 100}%` }} />
                 </span>
@@ -444,6 +505,7 @@ function App() {
               Lv {selectedHero.level} / EXP {selectedHero.exp}/{selectedHero.nextExp}
             </span>
             <span>ATK {selectedStats.attack} / HP {selectedStats.maxHp} / MP {selectedStats.maxMp}</span>
+            <span style={{ color: elementColors[selectedHero.element] }}>属性 {elementLabels[selectedHero.element]}</span>
             <div className="attribute-grid" aria-label="基礎ステータス">
               <span>STR {selectedHero.str}</span>
               <span>VIT {selectedHero.vit}</span>

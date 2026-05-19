@@ -5,6 +5,7 @@ type SkillKey = "e" | "r" | "t" | "y";
 type AreaId = "town" | "field" | "dungeon";
 type ShopId = "weapon" | "armor" | "item" | "inn";
 type ConsumableId = "potion";
+type ElementId = "neutral" | "fire" | "water" | "wind" | "earth" | "light" | "dark";
 
 type Skill = {
   key: SkillKey;
@@ -57,6 +58,8 @@ type Hero = Point & {
   hair: string;
   accent: string;
   weapon: Weapon;
+  element: ElementId;
+  facing: number;
   str: number;
   vit: number;
   agi: number;
@@ -78,6 +81,7 @@ type Hero = Point & {
 
 type Enemy = Point & {
   type: "corsair" | "duelist" | "boss";
+  element: ElementId;
   hp: number;
   maxHp: number;
   speed: number;
@@ -192,6 +196,35 @@ const formations: Formation[] = [
 ];
 
 const skillKeys: SkillKey[] = ["e", "r", "t", "y"];
+
+const elementLabels: Record<ElementId, string> = {
+  neutral: "無",
+  fire: "火",
+  water: "水",
+  wind: "風",
+  earth: "土",
+  light: "光",
+  dark: "闇"
+};
+
+const elementColors: Record<ElementId, string> = {
+  neutral: "#d9c7aa",
+  fire: "#ff8d62",
+  water: "#72b7ff",
+  wind: "#9de08f",
+  earth: "#d4a76a",
+  light: "#fff0a6",
+  dark: "#b58cff"
+};
+
+const elementAdvantage: Partial<Record<ElementId, ElementId>> = {
+  fire: "wind",
+  wind: "earth",
+  earth: "water",
+  water: "fire",
+  light: "dark",
+  dark: "light"
+};
 
 const areas: Record<AreaId, AreaDefinition> = {
   town: {
@@ -309,6 +342,8 @@ const initialHeroes: Hero[] = [
     hair: "#5b3027",
     accent: "#efe4d0",
     weapon: "sword",
+    element: "fire",
+    facing: 0,
     str: 15,
     vit: 13,
     agi: 12,
@@ -352,6 +387,8 @@ const initialHeroes: Hero[] = [
     hair: "#d7d0c5",
     accent: "#8f3143",
     weapon: "rifle",
+    element: "wind",
+    facing: 0,
     str: 9,
     vit: 9,
     agi: 11,
@@ -395,6 +432,8 @@ const initialHeroes: Hero[] = [
     hair: "#f1c16e",
     accent: "#fff0d5",
     weapon: "staff",
+    element: "water",
+    facing: 0,
     str: 6,
     vit: 8,
     agi: 9,
@@ -438,6 +477,8 @@ const initialHeroes: Hero[] = [
     hair: "#334039",
     accent: "#f4f0dc",
     weapon: "scout",
+    element: "light",
+    facing: 0,
     str: 7,
     vit: 10,
     agi: 16,
@@ -473,7 +514,7 @@ const initialHeroes: Hero[] = [
 ];
 
 function createReserveHeroes(): Hero[] {
-  const reserves = structuredClone([initialHeroes[0], initialHeroes[1], initialHeroes[2]]);
+  const reserves = structuredClone([initialHeroes[0], initialHeroes[1], initialHeroes[2], initialHeroes[0]]);
 
   reserves[0] = {
     ...reserves[0],
@@ -483,6 +524,7 @@ function createReserveHeroes(): Hero[] {
     trim: "#ffd7a2",
     hair: "#3e2c2e",
     accent: "#f4e2c0",
+    element: "earth",
     hp: 186,
     maxHp: 186,
     mp: 54,
@@ -508,6 +550,7 @@ function createReserveHeroes(): Hero[] {
     trim: "#cde6ff",
     hair: "#1f2735",
     accent: "#e8eef5",
+    element: "water",
     hp: 118,
     maxHp: 118,
     mp: 84,
@@ -534,6 +577,7 @@ function createReserveHeroes(): Hero[] {
     trim: "#d8c6ff",
     hair: "#e8d49c",
     accent: "#fff4de",
+    element: "dark",
     hp: 104,
     maxHp: 104,
     mp: 122,
@@ -550,6 +594,47 @@ function createReserveHeroes(): Hero[] {
     x: 0,
     y: 0,
     skillCooldowns: emptySkillCooldowns()
+  };
+
+  reserves[3] = {
+    ...reserves[3],
+    name: "ルシェリア",
+    role: "ファイター",
+    color: "#171d31",
+    trim: "#d5a85d",
+    hair: "#e8c690",
+    accent: "#f7f0e4",
+    element: "light",
+    hp: 174,
+    maxHp: 174,
+    mp: 66,
+    maxMp: 88,
+    str: 17,
+    vit: 13,
+    agi: 13,
+    int: 8,
+    dex: 13,
+    men: 10,
+    attack: 25,
+    range: 54,
+    speed: 170,
+    x: 0,
+    y: 0,
+    skills: [
+      { key: "e", id: "blade-lunge", name: "セレスティアスラスト", cost: 30, cooldown: 4 },
+      { key: "r", id: "blade-cleave", name: "スタークロス", cost: 36, cooldown: 5.4 },
+      { key: "t", id: "blade-guard", name: "ルミナスガード", cost: 26, cooldown: 7 },
+      { key: "y", id: "blade-rally", name: "ソードセイント", cost: 44, cooldown: 9.2 }
+    ],
+    skillCooldowns: emptySkillCooldowns(),
+    equipment: createEquipment(
+      "セレスティアブレード",
+      "星光の騎士鎧",
+      "リボンの聖印",
+      { attack: 8 },
+      { maxHp: 30, speed: 3 },
+      { maxMp: 10, attack: 3 }
+    )
   };
 
   return reserves;
@@ -747,11 +832,23 @@ function nearestEnemy(state: GameState, hero: Hero) {
   return best;
 }
 
-function moveToward(unit: Point & { speed: number }, point: Point, dt: number, multiplier = 1, speedOverride?: number) {
+function facingAngle(from: Point, to: Point) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.hypot(dx, dy) < 0.001) return 0;
+  return Math.atan2(dx, dy);
+}
+
+function faceToward(unit: Point & { facing?: number }, point: Point) {
+  unit.facing = facingAngle(unit, point);
+}
+
+function moveToward(unit: Point & { speed: number; facing?: number }, point: Point, dt: number, multiplier = 1, speedOverride?: number) {
   const dx = point.x - unit.x;
   const dy = point.y - unit.y;
   const d = Math.hypot(dx, dy);
   if (d < 2) return;
+  faceToward(unit, point);
   const step = Math.min(d, (speedOverride ?? unit.speed) * multiplier * dt);
   unit.x += (dx / d) * step;
   unit.y += (dy / d) * step;
@@ -768,12 +865,29 @@ function damage(state: GameState, target: Enemy | Hero, amount: number, color = 
   });
 }
 
-function damageWithAccuracy(state: GameState, target: Enemy | Hero, accuracy: number, amount: number, color = "#ffd47d") {
+function elementDamageMultiplier(source: ElementId, target: ElementId) {
+  if (source === "neutral" || target === "neutral") return 1;
+  if (elementAdvantage[source] === target) return 1.25;
+  if (elementAdvantage[target] === source) return 0.82;
+  return 1;
+}
+
+function elementalDamage(state: GameState, target: Enemy | Hero, amount: number, color = "#ffd47d", sourceElement: ElementId = "neutral") {
+  const multiplier = elementDamageMultiplier(sourceElement, target.element);
+  damage(state, target, amount * multiplier, color);
+  if (multiplier > 1.05) {
+    state.particles.push({ x: target.x, y: target.y - 42, text: "weak", color: elementColors[sourceElement], life: 0.55 });
+  } else if (multiplier < 0.95) {
+    state.particles.push({ x: target.x, y: target.y - 42, text: "resist", color: "#d9c7aa", life: 0.55 });
+  }
+}
+
+function damageWithAccuracy(state: GameState, target: Enemy | Hero, accuracy: number, amount: number, color = "#ffd47d", sourceElement: ElementId = "neutral") {
   if (Math.random() > accuracy) {
     state.particles.push({ x: target.x, y: target.y - 28, text: "miss", color: "#d9c7aa", life: 0.45 });
     return false;
   }
-  damage(state, target, amount, color);
+  elementalDamage(state, target, amount, color, sourceElement);
   return true;
 }
 
@@ -795,8 +909,10 @@ function spawnEnemy(state: GameState, boss = false) {
   const area = currentArea(state);
   const elite = !boss && Math.random() < 0.18 + Math.min(0.18, state.score / 5000);
   const pressure = (1 + Math.min(1.6, state.score / 2200)) * area.enemyScale;
+  const enemyElements: ElementId[] = ["fire", "water", "wind", "earth", "dark"];
   state.enemies.push({
     type: boss ? "boss" : elite ? "duelist" : "corsair",
+    element: boss ? (state.bossCount % 2 === 0 ? "dark" : "light") : enemyElements[Math.floor(Math.random() * enemyElements.length)],
     x: point.x,
     y: point.y,
     hp: boss ? 420 + state.bossCount * 120 : elite ? 88 * pressure : 48 * pressure,
@@ -922,14 +1038,15 @@ function useSkill(state: GameState, key: SkillKey) {
   const physicalPower = stats.physicalAttack;
   const magicPower = stats.magicAttack;
   const healPower = Math.floor(magicPower * 0.8);
+  if (target) faceToward(hero, target);
 
   if (skill.id === "blade-lunge" && target) {
     moveToward(hero, target, 1, 3.2);
-    damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.75, "#fff0a6");
+    damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.75, "#fff0a6", hero.element);
   }
   if (skill.id === "blade-cleave") {
     const center = target ?? hero;
-    for (const enemy of enemiesNear(state, center, 98)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.08, "#ffd28a");
+    for (const enemy of enemiesNear(state, center, 98)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.08, "#ffd28a", hero.element);
   }
   if (skill.id === "blade-guard") {
     setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 24 + Math.floor(physicalPower * 0.35));
@@ -943,19 +1060,19 @@ function useSkill(state: GameState, key: SkillKey) {
     }
   }
 
-  if (skill.id === "rifle-shot" && target) damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.45, "#d9ecff");
+  if (skill.id === "rifle-shot" && target) damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.45, "#d9ecff", hero.element);
   if (skill.id === "rifle-grenade" && target) {
-    for (const enemy of enemiesNear(state, target, 112)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.95, "#ffc27a");
+    for (const enemy of enemiesNear(state, target, 112)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.95, "#ffc27a", hero.element);
   }
   if (skill.id === "rifle-smoke") {
     for (const enemy of enemiesNear(state, hero, 190)) {
       enemy.speed *= 0.72;
-      damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.34, "#c7d5e8");
+      damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.34, "#c7d5e8", hero.element);
     }
   }
   if (skill.id === "rifle-volley") {
     for (const enemy of state.enemies) {
-      if (Math.abs(enemy.y - hero.y) < 94) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#d9ecff");
+      if (Math.abs(enemy.y - hero.y) < 94) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#d9ecff", hero.element);
     }
   }
 
@@ -966,7 +1083,7 @@ function useSkill(state: GameState, key: SkillKey) {
     }
   }
   if (skill.id === "staff-flare" && target) {
-    for (const enemy of enemiesNear(state, target, 125)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 1.08, "#ffb16f");
+    for (const enemy of enemiesNear(state, target, 125)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 1.08, "#ffb16f", hero.element);
   }
   if (skill.id === "staff-mana") {
     for (const ally of state.heroes) {
@@ -975,7 +1092,7 @@ function useSkill(state: GameState, key: SkillKey) {
     }
   }
   if (skill.id === "staff-starfall") {
-    for (const enemy of state.enemies) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.9, "#d7b5ff");
+    for (const enemy of state.enemies) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.9, "#d7b5ff", hero.element);
   }
 
   if (skill.id === "scout-firstaid") {
@@ -1007,7 +1124,7 @@ function useSkill(state: GameState, key: SkillKey) {
       ally.mp = clamp(ally.mp + 18, 0, heroStats(ally).maxMp);
       state.particles.push({ x: ally.x, y: ally.y - 32, text: "sanct", color: "#fff0a6", life: 1 });
     }
-    for (const enemy of enemiesNear(state, hero, 170)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.62, "#fff0a6");
+    for (const enemy of enemiesNear(state, hero, 170)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.62, "#fff0a6", hero.element);
   }
 }
 
@@ -1080,7 +1197,8 @@ function updateGame(state: GameState, dt: number) {
     if (d > stats.range && !state.targetPoint && !keyboardMoved) {
       moveToward(hero, target, dt, 0.62, stats.speed);
     } else if (d <= stats.range && hero.cooldown <= 0) {
-      if (damageWithAccuracy(state, target, stats.accuracy, stats.attack + Math.random() * 6, hero.trim)) {
+      faceToward(hero, target);
+      if (damageWithAccuracy(state, target, stats.accuracy, stats.attack + Math.random() * 6, hero.trim, hero.element)) {
         state.particles.push({ x: hero.x, y: hero.y - 32, text: "hit", color: hero.trim, life: 0.45 });
       }
       const baseCooldown = hero.weapon === "rifle" ? 1.02 : 0.76;
@@ -1099,7 +1217,7 @@ function updateGame(state: GameState, dt: number) {
         state.particles.push({ x: target.x, y: target.y - 28, text: "evade", color: "#d9ecff", life: 0.45 });
       } else {
         const mitigatedDamage = Math.max(1, enemy.attack + Math.random() * 4 - targetStats.physicalDefense * 0.35);
-        damage(state, target, mitigatedDamage, "#ff8d75");
+        elementalDamage(state, target, mitigatedDamage, "#ff8d75", enemy.element);
       }
       enemy.cooldown = 1.28;
     }
@@ -1436,6 +1554,8 @@ export {
   areas,
   clamp,
   consumableCatalog,
+  elementColors,
+  elementLabels,
   equipmentCatalog,
   formations,
   heroStats,
@@ -1446,4 +1566,4 @@ export {
   upgradeCost
 };
 
-export type { AreaId, ConsumableId, Enemy, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey };
+export type { AreaId, ConsumableId, ElementId, Enemy, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey };

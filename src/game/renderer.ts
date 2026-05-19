@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { clamp, heroStats, type AreaId, type Enemy, type GameState, type Hero, type Point } from "./core";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { clamp, elementColors, heroStats, type AreaId, type Enemy, type GameState, type Hero, type Point } from "./core";
 
 type ThreeView = {
   renderer: THREE.WebGLRenderer;
@@ -11,20 +12,132 @@ type ThreeView = {
 };
 
 const WORLD_SCALE = 74;
+const LUCERIA_MODEL_URL = "/assets/luceria_swordsaint_apoze.glb";
+const CAMERA_RADIUS = 15.3;
+const sharedTextureKeys = [
+  "map",
+  "normalMap",
+  "roughnessMap",
+  "metalnessMap",
+  "emissiveMap",
+  "aoMap",
+  "alphaMap"
+] as const;
+let luceriaTexture: THREE.Texture | null = null;
+let luceriaGltfModel: THREE.Group | null = null;
+let luceriaGltfLoading = false;
+let luceriaGltfFailed = false;
 
 function toWorld(point: Point, state: GameState) {
   return new THREE.Vector3((point.x - state.view.w / 2) / WORLD_SCALE, 0, (point.y - state.view.h / 2) / WORLD_SCALE);
 }
 
+function heroFacingAngle(hero: Hero) {
+  return hero.hp > 0 ? hero.facing : 0;
+}
+
+function getLuceriaTexture() {
+  if (!luceriaTexture) {
+    luceriaTexture = new THREE.TextureLoader().load("/assets/luceria_front_cutout.png");
+    luceriaTexture.colorSpace = THREE.SRGBColorSpace;
+    luceriaTexture.anisotropy = 4;
+    luceriaTexture.userData.shared = true;
+  }
+  return luceriaTexture;
+}
+
+function markSharedMaterial(material: THREE.Material) {
+  material.userData.shared = true;
+  const texturedMaterial = material as THREE.Material & Partial<Record<(typeof sharedTextureKeys)[number], THREE.Texture>>;
+  for (const key of sharedTextureKeys) {
+    const texture = texturedMaterial[key];
+    if (texture) texture.userData.shared = true;
+  }
+}
+
+function prepareLuceriaMaterial(material: THREE.Material) {
+  const texturedMaterial = material as THREE.Material & Partial<Record<(typeof sharedTextureKeys)[number], THREE.Texture>>;
+  if (texturedMaterial.map) {
+    texturedMaterial.map.colorSpace = THREE.SRGBColorSpace;
+    texturedMaterial.map.needsUpdate = true;
+  }
+  if (texturedMaterial.emissiveMap) {
+    texturedMaterial.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+    texturedMaterial.emissiveMap.needsUpdate = true;
+  }
+
+  const litMaterial = material as THREE.MeshStandardMaterial;
+  if (litMaterial.color && texturedMaterial.map) litMaterial.color.set(0xffffff);
+  if (litMaterial.emissive && !texturedMaterial.emissiveMap) litMaterial.emissive.set(0x000000);
+  if (typeof litMaterial.metalness === "number") litMaterial.metalness = Math.min(litMaterial.metalness, 0.35);
+  if (typeof litMaterial.roughness === "number") litMaterial.roughness = Math.min(Math.max(litMaterial.roughness, 0.38), 0.72);
+  material.needsUpdate = true;
+}
+
+function markSharedObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    child.castShadow = true;
+    child.receiveShadow = true;
+    if (!mesh.isMesh) return;
+    if (mesh.geometry) mesh.geometry.userData.shared = true;
+    const material = mesh.material;
+    if (Array.isArray(material)) {
+      for (const item of material) {
+        prepareLuceriaMaterial(item);
+        markSharedMaterial(item);
+      }
+    } else if (material) {
+      prepareLuceriaMaterial(material);
+      markSharedMaterial(material);
+    }
+  });
+}
+
+function normalizeLuceriaModel(model: THREE.Group) {
+  model.rotation.y = 0;
+  model.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialSize = initialBox.getSize(new THREE.Vector3());
+  const scale = 1.75 / Math.max(initialSize.y, 0.001);
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.set(-center.x, -box.min.y - 0.3, -center.z);
+}
+
+function loadLuceriaGltfModel() {
+  if (luceriaGltfModel || luceriaGltfLoading || luceriaGltfFailed) return luceriaGltfModel;
+  luceriaGltfLoading = true;
+  new GLTFLoader().load(
+    LUCERIA_MODEL_URL,
+    (gltf) => {
+      luceriaGltfModel = gltf.scene;
+      normalizeLuceriaModel(luceriaGltfModel);
+      markSharedObject(luceriaGltfModel);
+      luceriaGltfLoading = false;
+    },
+    undefined,
+    (error) => {
+      console.warn("Failed to load Luceria GLB model.", error);
+      luceriaGltfFailed = true;
+      luceriaGltfLoading = false;
+    }
+  );
+  return luceriaGltfModel;
+}
+
 function createThreeView(canvas: HTMLCanvasElement): ThreeView {
   const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
   renderer.setClearColor(0x1b1b28);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.18;
   renderer.shadowMap.enabled = true;
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x1b1b28, 12, 34);
   const camera = new THREE.OrthographicCamera(-8, 8, 4.5, -4.5, 0.1, 100);
-  camera.position.set(7.8, 9.8, 8.8);
-  camera.lookAt(0, 0, 0);
 
   const field = new THREE.Group();
   const units = new THREE.Group();
@@ -54,17 +167,20 @@ function resizeThreeView(view: ThreeView, state: GameState, canvas: HTMLCanvasEl
 }
 
 function disposeMaterial(material: THREE.Material) {
-  const texturedMaterial = material as THREE.Material & {
-    map?: THREE.Texture;
-  };
-  texturedMaterial.map?.dispose();
+  if (material.userData.shared) return;
+  const texturedMaterial = material as THREE.Material & Partial<Record<(typeof sharedTextureKeys)[number], THREE.Texture | null>>;
+  for (const key of sharedTextureKeys) {
+    const texture = texturedMaterial[key];
+    if (texture && !texture.userData.shared) texture.dispose();
+  }
   material.dispose();
 }
 
 function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
     const mesh = child as THREE.Mesh;
-    mesh.geometry?.dispose();
+    if (!mesh.isMesh) return;
+    if (mesh.geometry && !mesh.geometry.userData.shared) mesh.geometry.dispose();
     const material = mesh.material;
     if (Array.isArray(material)) {
       for (const item of material) disposeMaterial(item);
@@ -200,9 +316,14 @@ function rebuildField(view: ThreeView, state: GameState) {
 }
 
 function createHeroMesh(hero: Hero, state: GameState, index: number) {
+  if (hero.name === "ルシェリア") return createLuceriaMesh(hero, state, index);
+
   const group = new THREE.Group();
   const pos = toWorld(hero, state);
   group.position.copy(pos);
+  const model = new THREE.Group();
+  model.rotation.y = heroFacingAngle(hero);
+  group.add(model);
   const selected = state.selected === index;
 
   const body = new THREE.Mesh(
@@ -211,7 +332,7 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   );
   body.position.y = 0.55;
   body.castShadow = true;
-  group.add(body);
+  model.add(body);
 
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(0.18, 16, 12),
@@ -219,7 +340,31 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   );
   head.position.y = 1.04;
   head.castShadow = true;
-  group.add(head);
+  model.add(head);
+
+  const hair = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
+    new THREE.MeshStandardMaterial({ color: hero.hair, roughness: 0.72 })
+  );
+  hair.position.set(0, 1.1, -0.035);
+  hair.rotation.x = -0.3;
+  model.add(hair);
+
+  const ponytail = new THREE.Mesh(
+    new THREE.CapsuleGeometry(0.065, 0.42, 4, 8),
+    new THREE.MeshStandardMaterial({ color: hero.hair, roughness: 0.75 })
+  );
+  ponytail.position.set(0.14, 0.88, -0.2);
+  ponytail.rotation.x = 0.72;
+  ponytail.rotation.z = -0.28;
+  model.add(ponytail);
+
+  const chestAccent = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.18, 0.035),
+    new THREE.MeshStandardMaterial({ color: hero.accent, roughness: 0.52 })
+  );
+  chestAccent.position.set(0, 0.67, 0.17);
+  model.add(chestAccent);
 
   const trim = new THREE.Mesh(
     new THREE.TorusGeometry(0.25, 0.025, 8, 28),
@@ -236,9 +381,164 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   );
   weapon.rotation.z = hero.weapon === "staff" ? 0.18 : -0.75;
   weapon.position.set(0.32, 0.65, 0.03);
-  group.add(weapon);
+  model.add(weapon);
 
   addHealthBar(group, hero.hp / heroStats(hero).maxHp, 0.92, selected ? 0xffe0a0 : 0xffffff);
+  return group;
+}
+
+function createLuceriaMesh(hero: Hero, state: GameState, index: number) {
+  const group = new THREE.Group();
+  group.position.copy(toWorld(hero, state));
+  const model = new THREE.Group();
+  model.rotation.y = heroFacingAngle(hero);
+  group.add(model);
+  const selected = state.selected === index;
+  const gltfModel = loadLuceriaGltfModel();
+  if (gltfModel) {
+    model.add(gltfModel);
+    const selection = new THREE.Mesh(
+      new THREE.TorusGeometry(0.34, 0.025, 8, 36),
+      new THREE.MeshBasicMaterial({ color: selected ? 0xffe0a0 : hero.trim })
+    );
+    selection.rotation.x = Math.PI / 2;
+    selection.position.y = -0.3;
+    group.add(selection);
+    addHealthBar(group, hero.hp / heroStats(hero).maxHp, 1.62, selected ? 0xffe0a0 : 0xffffff);
+    return group;
+  }
+
+  const navy = new THREE.MeshStandardMaterial({ color: 0x171d31, roughness: 0.48, metalness: 0.18 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xd5a85d, roughness: 0.34, metalness: 0.72 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xf7f0e4, roughness: 0.56, metalness: 0.05 });
+  const hairMat = new THREE.MeshStandardMaterial({ color: 0xe8c690, roughness: 0.72 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xf0c7a5, roughness: 0.65 });
+  const blueGem = new THREE.MeshStandardMaterial({ color: 0x2f8fff, emissive: 0x0b3b7a, emissiveIntensity: 0.45, roughness: 0.22, metalness: 0.1 });
+
+  const imageModel = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.95, 1.66),
+    new THREE.MeshBasicMaterial({
+      map: getLuceriaTexture(),
+      transparent: true,
+      alphaTest: 0.08,
+      side: THREE.DoubleSide
+    })
+  );
+  imageModel.position.set(0.02, 0.54, 0.19);
+  imageModel.rotation.y = -0.18;
+  model.add(imageModel);
+
+  const cape = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.86, 1.52, 3, 1),
+    new THREE.MeshBasicMaterial({ color: 0x11182c, transparent: true, opacity: 0.74, side: THREE.DoubleSide })
+  );
+  cape.position.set(0, 0.48, -0.24);
+  cape.rotation.x = -0.22;
+  model.add(cape);
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.46, 5, 12), navy);
+  body.position.y = 0.58;
+  body.castShadow = true;
+  model.add(body);
+
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.045), white);
+  chest.position.set(0, 0.74, 0.17);
+  model.add(chest);
+
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.48, 0.28, 8, 1, true), white);
+  skirt.position.y = 0.31;
+  skirt.castShadow = true;
+  model.add(skirt);
+
+  const waist = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.018, 8, 32), gold);
+  waist.rotation.x = Math.PI / 2;
+  waist.position.y = 0.47;
+  model.add(waist);
+
+  for (const side of [-1, 1]) {
+    const shoulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.13, 0), gold);
+    shoulder.position.set(side * 0.25, 0.82, 0.02);
+    shoulder.scale.set(1.25, 0.72, 0.9);
+    model.add(shoulder);
+
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.36, 4, 8), navy);
+    arm.position.set(side * 0.31, 0.53, 0.02);
+    arm.rotation.z = side * 0.22;
+    model.add(arm);
+
+    const bracer = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.18, 4, 8), gold);
+    bracer.position.set(side * 0.36, 0.37, 0.03);
+    bracer.rotation.z = side * 0.24;
+    model.add(bracer);
+
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.42, 4, 8), navy);
+    leg.position.set(side * 0.12, 0.03, 0.02);
+    model.add(leg);
+
+    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.22, 4, 8), gold);
+    boot.position.set(side * 0.12, -0.19, 0.03);
+    model.add(boot);
+
+    const trimLine = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.48, 6), gold);
+    trimLine.position.set(side * 0.12, 0.49, 0.2);
+    trimLine.rotation.z = side * 0.42;
+    model.add(trimLine);
+  }
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 18, 12), skin);
+  head.position.y = 1.05;
+  head.castShadow = true;
+  model.add(head);
+
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), hairMat);
+  hair.position.set(0, 1.11, -0.03);
+  hair.rotation.x = -0.28;
+  model.add(hair);
+
+  const forelock = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.28, 8), hairMat);
+  forelock.position.set(-0.06, 1.0, 0.14);
+  forelock.rotation.x = 0.55;
+  model.add(forelock);
+
+  const ponytail = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.62, 5, 10), hairMat);
+  ponytail.position.set(0.18, 0.87, -0.24);
+  ponytail.rotation.x = 0.88;
+  ponytail.rotation.z = -0.34;
+  model.add(ponytail);
+
+  const ribbon = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.025, 6, 18), navy);
+  ribbon.position.set(0.12, 1.18, -0.1);
+  ribbon.rotation.set(0.2, 0.25, 0.8);
+  model.add(ribbon);
+
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.05, 0.018), new THREE.MeshStandardMaterial({ color: 0xdfe8f4, roughness: 0.22, metalness: 0.85 }));
+  blade.position.set(0.47, 0.32, 0.05);
+  blade.rotation.z = -0.86;
+  model.add(blade);
+
+  const swordCore = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.78, 0.022), blueGem);
+  swordCore.position.copy(blade.position);
+  swordCore.rotation.copy(blade.rotation);
+  model.add(swordCore);
+
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 0.045), gold);
+  guard.position.set(0.24, 0.54, 0.08);
+  guard.rotation.z = -0.86;
+  model.add(guard);
+
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), blueGem);
+  gem.position.set(0.25, 0.53, 0.12);
+  model.add(gem);
+
+  const selection = new THREE.Mesh(
+    new THREE.TorusGeometry(0.28, 0.025, 8, 32),
+    new THREE.MeshBasicMaterial({ color: selected ? 0xffe0a0 : hero.trim })
+  );
+  selection.rotation.x = Math.PI / 2;
+  selection.position.y = -0.28;
+  group.add(selection);
+
+  addHealthBar(group, hero.hp / heroStats(hero).maxHp, 1.36, selected ? 0xffe0a0 : 0xffffff);
   return group;
 }
 
@@ -247,10 +547,11 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
   group.position.copy(toWorld(enemy, state));
   const isBoss = enemy.type === "boss";
   const radius = isBoss ? 0.38 : enemy.type === "duelist" ? 0.25 : 0.2;
+  const elementColor = new THREE.Color(elementColors[enemy.element]).getHex();
   const body = new THREE.Mesh(
     isBoss ? new THREE.DodecahedronGeometry(radius, 0) : new THREE.ConeGeometry(radius, isBoss ? 0.9 : 0.56, 5),
     new THREE.MeshStandardMaterial({
-      color: isBoss ? 0x332144 : enemy.type === "duelist" ? 0x6f4b8f : 0x9d4f59,
+      color: elementColor,
       roughness: 0.6,
       metalness: isBoss ? 0.18 : 0.04
     })
@@ -268,6 +569,14 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
     crown.rotation.x = Math.PI / 2;
     group.add(crown);
   }
+
+  const elementRing = new THREE.Mesh(
+    new THREE.TorusGeometry(radius + 0.08, 0.015, 8, 30),
+    new THREE.MeshBasicMaterial({ color: elementColor })
+  );
+  elementRing.position.y = 0.06;
+  elementRing.rotation.x = Math.PI / 2;
+  group.add(elementRing);
 
   addHealthBar(group, enemy.hp / enemy.maxHp, isBoss ? 1.35 : 0.82, isBoss ? 0xffcf6f : 0xffffff);
   return group;
@@ -348,6 +657,9 @@ function renderGame(view: ThreeView, state: GameState) {
 class ThreeGameRenderer {
   private view: ThreeView | null = null;
   private dpr = 1;
+  private zoom = 1.35;
+  private cameraYaw = 0.725;
+  private cameraPitch = 0.695;
   private renderedArea: AreaId | null = null;
   private contextLost = false;
   private disposed = false;
@@ -393,6 +705,33 @@ class ThreeGameRenderer {
     if (!this.view || this.contextLost) return;
     this.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     resizeThreeView(this.view, this.state, this.canvas, this.dpr);
+    this.applyCamera();
+  }
+
+  zoomBy(deltaY: number) {
+    const direction = deltaY > 0 ? -1 : 1;
+    const factor = direction > 0 ? 1.16 : 1 / 1.08;
+    this.zoom = clamp(this.zoom * factor, 0.95, 4.2);
+    this.applyCamera();
+  }
+
+  rotateCamera(deltaX: number, deltaY: number) {
+    this.cameraYaw -= deltaX * 0.006;
+    this.cameraPitch = clamp(this.cameraPitch - deltaY * 0.004, 0.28, 1.08);
+    this.applyCamera();
+  }
+
+  private applyCamera() {
+    if (!this.view || this.contextLost) return;
+    const horizontalRadius = Math.cos(this.cameraPitch) * CAMERA_RADIUS;
+    this.view.camera.position.set(
+      Math.sin(this.cameraYaw) * horizontalRadius,
+      Math.sin(this.cameraPitch) * CAMERA_RADIUS,
+      Math.cos(this.cameraYaw) * horizontalRadius
+    );
+    this.view.camera.lookAt(0, 0, 0);
+    this.view.camera.zoom = this.zoom;
+    this.view.camera.updateProjectionMatrix();
   }
 
   render() {
