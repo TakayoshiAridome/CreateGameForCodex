@@ -60,6 +60,10 @@ type Hero = Point & {
   weapon: Weapon;
   element: ElementId;
   facing: number;
+  moving: boolean;
+  runTime: number;
+  attacking: boolean;
+  attackTime: number;
   str: number;
   vit: number;
   agi: number;
@@ -345,6 +349,10 @@ const initialHeroes: Hero[] = [
     weapon: "sword",
     element: "fire",
     facing: 0,
+    moving: false,
+    runTime: 0,
+    attacking: false,
+    attackTime: 0,
     str: 15,
     vit: 13,
     agi: 12,
@@ -390,6 +398,10 @@ const initialHeroes: Hero[] = [
     weapon: "rifle",
     element: "wind",
     facing: 0,
+    moving: false,
+    runTime: 0,
+    attacking: false,
+    attackTime: 0,
     str: 9,
     vit: 9,
     agi: 11,
@@ -435,6 +447,10 @@ const initialHeroes: Hero[] = [
     weapon: "staff",
     element: "water",
     facing: 0,
+    moving: false,
+    runTime: 0,
+    attacking: false,
+    attackTime: 0,
     str: 6,
     vit: 8,
     agi: 9,
@@ -480,6 +496,10 @@ const initialHeroes: Hero[] = [
     weapon: "scout",
     element: "light",
     facing: 0,
+    moving: false,
+    runTime: 0,
+    attacking: false,
+    attackTime: 0,
     str: 7,
     vit: 10,
     agi: 16,
@@ -854,6 +874,11 @@ function moveToward(unit: Point & { speed: number; facing?: number }, point: Poi
   const step = Math.min(d, (speedOverride ?? unit.speed) * multiplier * dt);
   unit.x += (dx / d) * step;
   unit.y += (dy / d) * step;
+  const animatedUnit = unit as Point & { moving?: boolean; runTime?: number };
+  if ("moving" in animatedUnit) {
+    animatedUnit.moving = true;
+    animatedUnit.runTime = (animatedUnit.runTime ?? 0) + step * 0.055;
+  }
 }
 
 function damage(state: GameState, target: Enemy | Hero, amount: number, color = "#ffd47d") {
@@ -1142,6 +1167,16 @@ function updateGame(state: GameState, dt: number) {
   if (state.paused) return;
 
   state.orderPulse = Math.max(0, state.orderPulse - dt);
+  for (const hero of state.heroes) {
+    hero.moving = false;
+    if (hero.attacking) {
+      hero.attackTime += dt;
+      if (hero.attackTime > 0.55) {
+        hero.attacking = false;
+        hero.attackTime = 0;
+      }
+    }
+  }
 
   const aliveHeroes = state.heroes.filter((hero) => hero.hp > 0);
   if (aliveHeroes.length === 0) {
@@ -1208,6 +1243,8 @@ function updateGame(state: GameState, dt: number) {
       moveToward(hero, target, dt, 0.62, stats.speed);
     } else if (d <= stats.range && hero.cooldown <= 0) {
       faceToward(hero, target);
+      hero.attacking = true;
+      hero.attackTime = 0;
       if (damageWithAccuracy(state, target, stats.accuracy, stats.attack + Math.random() * 6, hero.trim, hero.element)) {
         state.particles.push({ x: hero.x, y: hero.y - 32, text: "hit", color: hero.trim, life: 0.45 });
       }

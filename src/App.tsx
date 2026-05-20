@@ -51,12 +51,21 @@ function App() {
     rendererRef.current = renderer;
     let animationId = 0;
     let hudTimer = 0;
+    let lastFrame = 0;
+    const gameFrameInterval = 1000 / 30;
+    const menuFrameInterval = 1000 / 8;
 
     const resize = () => {
       renderer.resize();
     };
 
     const loop = (now: number) => {
+      const frameInterval = startedRef.current ? gameFrameInterval : menuFrameInterval;
+      if (now - lastFrame < frameInterval) {
+        animationId = requestAnimationFrame(loop);
+        return;
+      }
+      lastFrame = now;
       const dt = Math.min(0.04, (now - engine.state.last) / 1000);
       engine.state.last = now;
       if (startedRef.current) engine.update(dt);
