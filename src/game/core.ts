@@ -240,7 +240,7 @@ const areas: Record<AreaId, AreaDefinition> = {
   town: {
     id: "town",
     name: "町",
-    description: "補給と回復の拠点。敵は出現しません。",
+    description: "広い街区を持つ補給と回復の拠点。敵は出現しません。",
     spawnRate: 0,
     bossInterval: Infinity,
     enemyScale: 0
@@ -256,7 +256,7 @@ const areas: Record<AreaId, AreaDefinition> = {
   dungeon: {
     id: "dungeon",
     name: "ダンジョン",
-    description: "危険な地下区域。敵が強く、ボスも早く現れます。",
+    description: "広大で入り組んだ地下区域。敵が強く、ボスも早く現れます。",
     spawnRate: 1.45,
     bossInterval: 18,
     enemyScale: 1.35
@@ -839,13 +839,17 @@ function combatBottom(state: GameState) {
 }
 
 function playableWidth(state: GameState) {
-  if (state.area !== "field") return state.view.w;
-  return Math.max(2400, state.view.w * 2.65);
+  if (state.area === "town") return Math.max(1900, state.view.w * 2.05);
+  if (state.area === "dungeon") return Math.max(2300, state.view.w * 2.45);
+  if (state.area === "field") return Math.max(2400, state.view.w * 2.65);
+  return state.view.w;
 }
 
 function playableBottom(state: GameState) {
-  if (state.area !== "field") return combatBottom(state);
-  return Math.max(1280, combatBottom(state) * 2.35);
+  if (state.area === "town") return Math.max(1120, combatBottom(state) * 1.9);
+  if (state.area === "dungeon") return Math.max(1420, combatBottom(state) * 2.35);
+  if (state.area === "field") return Math.max(1280, combatBottom(state) * 2.35);
+  return combatBottom(state);
 }
 
 function addLog(state: GameState, text: string) {
@@ -857,34 +861,32 @@ function currentArea(state: GameState) {
 }
 
 function warpPointForArea(state: GameState): WarpPoint | null {
-  const y = Math.min(combatBottom(state) - 94, 520);
-  if (state.area === "town") return { x: state.view.w - 205, y, target: "field", label: "フィールドへ" };
+  if (state.area === "town") return { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "field", label: "フィールドへ" };
   if (state.area === "field") return { x: 210, y: playableBottom(state) - 190, target: "town", label: "町へ" };
   return null;
 }
 
 function warpPointsForArea(state: GameState): WarpPoint[] {
   const primary = warpPointForArea(state);
-  const y = Math.min(combatBottom(state) - 94, 520);
   if (state.area === "field") {
     return [
       ...(primary ? [primary] : []),
       { x: playableWidth(state) - 240, y: 210, target: "dungeon", label: "ダンジョンへ" }
     ];
   }
-  if (state.area === "dungeon") return [{ x: 185, y, target: "field", label: "フィールドへ" }];
+  if (state.area === "dungeon") return [{ x: 210, y: playableBottom(state) - 190, target: "field", label: "フィールドへ" }];
   return primary ? [primary] : [];
 }
 
 function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
-  const entryY = state.area === "field" ? playableBottom(state) - 190 : Math.min(combatBottom(state) - 94, 520);
+  const entryY = playableBottom(state) - 190;
   const entryAnchor =
     state.area === "town"
-      ? { x: state.view.w - 335, y: entryY }
+      ? { x: playableWidth(state) - 360, y: entryY }
       : state.area === "field"
         ? { x: fromArea === "town" ? 335 : playableWidth(state) - 370, y: fromArea === "town" ? entryY : 260 }
         : state.area === "dungeon"
-          ? { x: 335, y: entryY }
+          ? { x: 350, y: entryY }
         : currentFormationAnchor(state);
   for (let i = 0; i < state.heroes.length; i += 1) {
     const slot = formations[state.formation].slots[i];

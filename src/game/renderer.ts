@@ -83,7 +83,7 @@ function cameraCenterForState(state: GameState) {
 }
 
 function playableAreaDepth(state: GameState) {
-  return state.area === "field" ? playableBottom(state) : state.view.h;
+  return playableBottom(state);
 }
 
 function areaBaseCenter(state: GameState) {
@@ -585,10 +585,59 @@ function addExpandedFieldTerrain(group: THREE.Group, state: GameState) {
   addFieldPatch(group, state, { x: width - 240, y: 210 }, { x: 220, y: 140 }, 0x6f5a91, 0.22, 0.035);
 }
 
+function addExpandedTownTerrain(group: THREE.Group, state: GameState) {
+  const width = playableWidth(state);
+  const bottom = playableBottom(state);
+  addFieldPatch(group, state, { x: width * 0.5, y: bottom * 0.52 }, { x: width * 0.82, y: 120 }, 0xb6a06e, -0.08, 0.025);
+  addFieldPatch(group, state, { x: width * 0.5, y: bottom * 0.5 }, { x: 130, y: bottom * 0.82 }, 0xa58b5f, 0.04, 0.027);
+  addFieldPatch(group, state, { x: width * 0.32, y: bottom * 0.34 }, { x: 420, y: 260 }, 0x738063, 0.22, 0.02);
+  addFieldPatch(group, state, { x: width * 0.68, y: bottom * 0.66 }, { x: 480, y: 250 }, 0x606e5a, -0.18, 0.02);
+  addFieldPatch(group, state, { x: width - 230, y: bottom - 190 }, { x: 240, y: 150 }, 0x9d8155, 0.08, 0.036);
+
+  for (let i = 0; i < 12; i += 1) {
+    const x = width * 0.18 + ((i * 173) % Math.max(420, width * 0.62));
+    const y = bottom * 0.18 + ((i * 131) % Math.max(360, bottom * 0.64));
+    if (Math.abs(x - width * 0.5) < 110 || Math.abs(y - bottom * 0.52) < 95) continue;
+    addFieldTree(group, state, { x, y }, 0.72 + (i % 3) * 0.08);
+  }
+}
+
+function addExpandedDungeonTerrain(group: THREE.Group, state: GameState) {
+  const width = playableWidth(state);
+  const bottom = playableBottom(state);
+  addFieldPatch(group, state, { x: width * 0.5, y: bottom * 0.5 }, { x: width * 0.72, y: 150 }, 0x4d435f, 0.13, 0.024);
+  addFieldPatch(group, state, { x: width * 0.48, y: bottom * 0.5 }, { x: 150, y: bottom * 0.72 }, 0x343040, -0.05, 0.026);
+  addFieldPatch(group, state, { x: width * 0.28, y: bottom * 0.28 }, { x: 520, y: 240 }, 0x2f293c, 0.32, 0.024);
+  addFieldPatch(group, state, { x: width * 0.72, y: bottom * 0.68 }, { x: 560, y: 280 }, 0x262535, -0.22, 0.024);
+  addFieldPatch(group, state, { x: 210, y: bottom - 190 }, { x: 240, y: 150 }, 0x594878, -0.08, 0.036);
+
+  for (let i = 0; i < 16; i += 1) {
+    addFieldRock(
+      group,
+      state,
+      { x: width * 0.14 + ((i * 211) % Math.max(620, width * 0.72)), y: bottom * 0.16 + ((i * 167) % Math.max(520, bottom * 0.72)) },
+      20 + (i % 4) * 8,
+      46 + (i % 5) * 18,
+      i % 2 === 0 ? 0x3b3946 : 0x5a5067
+    );
+  }
+
+  for (let i = 0; i < 10; i += 1) {
+    const pillar = new THREE.Mesh(
+      sharedGeometry("dungeon-wide-pillar", () => new THREE.CylinderGeometry(0.16, 0.22, 1.45, 12)),
+      sharedStandardMaterial("dungeon-wide-pillar", { color: 0x2d2937, roughness: 0.84 })
+    );
+    pillar.position.copy(areaLocal({ x: width * 0.2 + i * (width * 0.06), y: bottom * 0.42 + Math.sin(i) * 120 }, state));
+    pillar.position.y = 0.72;
+    pillar.castShadow = true;
+    group.add(pillar);
+  }
+}
+
 function rebuildField(view: ThreeView, state: GameState) {
   clearGroup(view.field);
-  const worldWidth = state.area === "field" ? playableWidth(state) : state.view.w;
-  const worldDepth = state.area === "field" ? playableBottom(state) : state.view.h;
+  const worldWidth = playableWidth(state);
+  const worldDepth = playableBottom(state);
   const width = worldWidth / WORLD_SCALE;
   const depth = worldDepth / WORLD_SCALE;
   const groundColor = state.area === "town" ? 0x6d6f59 : state.area === "dungeon" ? 0x393446 : 0x66724a;
@@ -607,6 +656,7 @@ function rebuildField(view: ThreeView, state: GameState) {
   view.field.add(grid);
 
   if (state.area === "town") {
+    addExpandedTownTerrain(view.field, state);
     const shopBuildings = [
       { name: "武器屋", x: -3.3, color: 0x8b5a4c, roof: 0x7d3344 },
       { name: "防具屋", x: -1.1, color: 0x5f6f80, roof: 0x36465f },
@@ -662,6 +712,10 @@ function rebuildField(view: ThreeView, state: GameState) {
 
   if (state.area === "field") {
     addExpandedFieldTerrain(view.field, state);
+  }
+
+  if (state.area === "dungeon") {
+    addExpandedDungeonTerrain(view.field, state);
   }
 
   for (const warpPoint of warpPointsForArea(state)) view.field.add(createWarpPointMesh(warpPoint, state));
