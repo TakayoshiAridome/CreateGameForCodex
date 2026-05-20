@@ -853,13 +853,28 @@ function warpPointForArea(state: GameState): WarpPoint | null {
   return null;
 }
 
+function warpPointsForArea(state: GameState): WarpPoint[] {
+  const primary = warpPointForArea(state);
+  const y = Math.min(combatBottom(state) - 94, 520);
+  if (state.area === "field") {
+    return [
+      ...(primary ? [primary] : []),
+      { x: state.view.w - 205, y, target: "dungeon", label: "ダンジョンへ" }
+    ];
+  }
+  if (state.area === "dungeon") return [{ x: 185, y, target: "field", label: "フィールドへ" }];
+  return primary ? [primary] : [];
+}
+
 function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
   const entryY = Math.min(combatBottom(state) - 94, 520);
   const entryAnchor =
     state.area === "town"
       ? { x: state.view.w - 335, y: entryY }
-      : fromArea === "town"
-        ? { x: 335, y: entryY }
+      : state.area === "field"
+        ? { x: fromArea === "town" ? 335 : state.view.w - 335, y: entryY }
+        : state.area === "dungeon"
+          ? { x: 335, y: entryY }
         : currentFormationAnchor(state);
   for (let i = 0; i < state.heroes.length; i += 1) {
     const slot = formations[state.formation].slots[i];
@@ -886,7 +901,7 @@ function changeAreaState(state: GameState, area: AreaId) {
       hero.mp = clamp(hero.mp + 28, 0, stats.maxMp);
     }
   }
-  if ((fromArea === "town" && area === "field") || (fromArea === "field" && area === "town")) {
+  if (fromArea !== area) {
     movePartyToAreaEntry(state, fromArea);
     clearMovement(state);
   }
@@ -894,10 +909,9 @@ function changeAreaState(state: GameState, area: AreaId) {
 }
 
 function warpPartyIfOnPoint(state: GameState) {
-  const warpPoint = warpPointForArea(state);
-  if (!warpPoint) return false;
   const anchor = currentFormationAnchor(state);
-  if (distance(anchor, warpPoint) > 120) return false;
+  const warpPoint = warpPointsForArea(state).find((candidate) => distance(anchor, candidate) <= 120);
+  if (!warpPoint) return false;
   return changeAreaState(state, warpPoint.target);
 }
 
@@ -1617,8 +1631,8 @@ class GameEngine {
   }
 
   selectAt(point: Point) {
-    const warpPoint = warpPointForArea(this.state);
-    if (warpPoint && Math.hypot(point.x - warpPoint.x, point.y - warpPoint.y) < 120) {
+    const warpPoint = warpPointsForArea(this.state).find((candidate) => Math.hypot(point.x - candidate.x, point.y - candidate.y) < 120);
+    if (warpPoint) {
       this.changeArea(warpPoint.target);
       return;
     }
@@ -1693,7 +1707,8 @@ export {
   shops,
   skillKeys,
   upgradeCost,
-  warpPointForArea
+  warpPointForArea,
+  warpPointsForArea
 };
 
 export type { AreaId, ConsumableId, ElementId, Enemy, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey, WarpPoint };

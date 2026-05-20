@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { clamp, elementColors, heroStats, warpPointForArea, type AreaId, type Enemy, type GameState, type Hero, type Point, type WarpPoint } from "./core";
+import { clamp, elementColors, heroStats, warpPointsForArea, type AreaId, type Enemy, type GameState, type Hero, type Point, type WarpPoint } from "./core";
 
 type ThreeView = {
   renderer: THREE.WebGLRenderer;
@@ -410,12 +410,13 @@ function disposeThreeView(view: ThreeView) {
 function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const group = new THREE.Group();
   group.position.copy(toWorld(warpPoint, state));
+  const isDungeonGate = warpPoint.target === "dungeon" || state.area === "dungeon";
 
   const pad = new THREE.Mesh(
     sharedGeometry("warp-pad-cylinder", () => new THREE.CylinderGeometry(0.48, 0.58, 0.045, 36)),
-    sharedStandardMaterial(`warp-pad-${state.area}`, {
-      color: state.area === "town" ? 0x71d8ff : 0xffd071,
-      emissive: state.area === "town" ? 0x1c5f82 : 0x6d4214,
+    sharedStandardMaterial(`warp-pad-${state.area}-${warpPoint.target}`, {
+      color: isDungeonGate ? 0xb889ff : state.area === "town" ? 0x71d8ff : 0xffd071,
+      emissive: isDungeonGate ? 0x3d1e68 : state.area === "town" ? 0x1c5f82 : 0x6d4214,
       emissiveIntensity: 0.28,
       roughness: 0.38,
       metalness: 0.1
@@ -426,7 +427,9 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
 
   const ring = new THREE.Mesh(
     sharedGeometry("warp-ring-torus", () => new THREE.TorusGeometry(0.54, 0.025, 8, 42)),
-    sharedBasicMaterial(`warp-ring-${state.area}`, { color: state.area === "town" ? 0xb9f4ff : 0xffe4a3 })
+    sharedBasicMaterial(`warp-ring-${state.area}-${warpPoint.target}`, {
+      color: isDungeonGate ? 0xd8bdff : state.area === "town" ? 0xb9f4ff : 0xffe4a3
+    })
   );
   ring.rotation.x = Math.PI / 2;
   ring.position.y = 0.08;
@@ -434,7 +437,9 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
 
   const arch = new THREE.Mesh(
     sharedGeometry("warp-arch-torus", () => new THREE.TorusGeometry(0.38, 0.025, 10, 34, Math.PI)),
-    sharedBasicMaterial(`warp-arch-${state.area}`, { color: state.area === "town" ? 0x9eeaff : 0xffcf6f })
+    sharedBasicMaterial(`warp-arch-${state.area}-${warpPoint.target}`, {
+      color: isDungeonGate ? 0xc89cff : state.area === "town" ? 0x9eeaff : 0xffcf6f
+    })
   );
   arch.rotation.z = Math.PI;
   arch.position.y = 0.7;
@@ -442,8 +447,8 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
 
   const core = new THREE.Mesh(
     sharedGeometry("warp-core-plane", () => new THREE.PlaneGeometry(0.5, 0.78)),
-    sharedBasicMaterial(`warp-core-${state.area}`, {
-      color: state.area === "town" ? 0x4fbfff : 0xffb24a,
+    sharedBasicMaterial(`warp-core-${state.area}-${warpPoint.target}`, {
+      color: isDungeonGate ? 0x9c63ff : state.area === "town" ? 0x4fbfff : 0xffb24a,
       transparent: true,
       opacity: 0.42,
       side: THREE.DoubleSide
@@ -530,8 +535,7 @@ function rebuildField(view: ThreeView, state: GameState) {
     );
     plaza.position.y = 0.025;
     view.field.add(plaza);
-    const warpPoint = warpPointForArea(state);
-    if (warpPoint) view.field.add(createWarpPointMesh(warpPoint, state));
+    for (const warpPoint of warpPointsForArea(state)) view.field.add(createWarpPointMesh(warpPoint, state));
     return;
   }
 
@@ -553,9 +557,9 @@ function rebuildField(view: ThreeView, state: GameState) {
       tree.position.set(side * (width / 2 - 0.8 - (i % 3) * 0.38), 0, -depth / 2 + 1.0 + i * 0.7);
       view.field.add(tree);
     }
-    const warpPoint = warpPointForArea(state);
-    if (warpPoint) view.field.add(createWarpPointMesh(warpPoint, state));
   }
+
+  for (const warpPoint of warpPointsForArea(state)) view.field.add(createWarpPointMesh(warpPoint, state));
 
   for (let i = -3; i <= 3; i += 1) {
     const column = new THREE.Mesh(
