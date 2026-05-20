@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { clamp, elementColors, heroStats, warpPointsForArea, type AreaId, type Enemy, type GameState, type Hero, type Point, type WarpPoint } from "./core";
+import { clamp, elementColors, heroStats, playableBottom, playableWidth, warpPointsForArea, type AreaId, type Enemy, type GameState, type Hero, type Point, type WarpPoint } from "./core";
 
 type ThreeView = {
   renderer: THREE.WebGLRenderer;
@@ -59,7 +59,40 @@ let luceriaAttackGltfFailed = false;
 const luceriaAnimationInstances: Partial<Record<LuceriaAnimationKind, LuceriaAnimationInstance>> = {};
 
 function toWorld(point: Point, state: GameState) {
-  return new THREE.Vector3((point.x - state.view.w / 2) / WORLD_SCALE, 0, (point.y - state.view.h / 2) / WORLD_SCALE);
+  const center = cameraCenterForState(state);
+  return new THREE.Vector3((point.x - center.x) / WORLD_SCALE, 0, (point.y - center.y) / WORLD_SCALE);
+}
+
+function cameraCenterForState(state: GameState) {
+  const selectedHero = state.heroes[state.selected];
+  const aliveHeroes = state.heroes.filter((hero) => hero.hp > 0);
+  const heroes = aliveHeroes.length > 0 ? aliveHeroes : state.heroes;
+  const anchor =
+    selectedHero && selectedHero.hp > 0
+      ? selectedHero
+      : heroes.reduce(
+          (center, hero) => ({ x: center.x + hero.x / heroes.length, y: center.y + hero.y / heroes.length }),
+          { x: 0, y: 0 }
+        );
+  const halfW = state.view.w / 2;
+  const halfH = state.view.h / 2;
+  return {
+    x: clamp(anchor.x, halfW, Math.max(halfW, playableWidth(state) - halfW)),
+    y: clamp(anchor.y, halfH, Math.max(halfH, playableAreaDepth(state) - halfH))
+  };
+}
+
+function playableAreaDepth(state: GameState) {
+  return state.area === "field" ? playableBottom(state) : state.view.h;
+}
+
+function areaBaseCenter(state: GameState) {
+  return { x: playableWidth(state) / 2, y: playableAreaDepth(state) / 2 };
+}
+
+function areaLocal(point: Point, state: GameState) {
+  const center = areaBaseCenter(state);
+  return new THREE.Vector3((point.x - center.x) / WORLD_SCALE, 0, (point.y - center.y) / WORLD_SCALE);
 }
 
 function sharedGeometry<T extends THREE.BufferGeometry>(key: string, create: () => T): T {
@@ -409,7 +442,7 @@ function disposeThreeView(view: ThreeView) {
 
 function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const group = new THREE.Group();
-  group.position.copy(toWorld(warpPoint, state));
+  group.position.copy(areaLocal(warpPoint, state));
   const isDungeonGate = warpPoint.target === "dungeon" || state.area === "dungeon";
 
   const pad = new THREE.Mesh(
@@ -466,13 +499,101 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   return group;
 }
 
+function addFieldPatch(group: THREE.Group, state: GameState, point: Point, size: Point, color: THREE.ColorRepresentation, rotation = 0, y = 0.018) {
+  const patch = new THREE.Mesh(
+    sharedGeometry(`field-patch-${size.x}-${size.y}`, () => new THREE.PlaneGeometry(size.x / WORLD_SCALE, size.y / WORLD_SCALE)),
+    sharedStandardMaterial(`field-patch-${colorKey(color)}`, { color, roughness: 0.9, metalness: 0.02 })
+  );
+  patch.position.copy(areaLocal(point, state));
+  patch.position.y = y;
+  patch.rotation.x = -Math.PI / 2;
+  patch.rotation.z = rotation;
+  group.add(patch);
+}
+
+function addFieldRock(group: THREE.Group, state: GameState, point: Point, radius: number, height: number, color: THREE.ColorRepresentation) {
+  const rock = new THREE.Mesh(
+    sharedGeometry(`field-rock-${radius}-${height}`, () => new THREE.DodecahedronGeometry(radius / WORLD_SCALE, 0)),
+    sharedStandardMaterial(`field-rock-${colorKey(color)}`, { color, roughness: 0.86, metalness: 0.04 })
+  );
+  rock.position.copy(areaLocal(point, state));
+  rock.position.y = height / WORLD_SCALE / 2;
+  rock.scale.y = height / Math.max(radius, 1);
+  rock.castShadow = true;
+  group.add(rock);
+}
+
+function addFieldTree(group: THREE.Group, state: GameState, point: Point, scale = 1) {
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    sharedGeometry("field-tree-trunk", () => new THREE.CylinderGeometry(0.07, 0.1, 0.42, 8)),
+    sharedStandardMaterial("field-tree-trunk", { color: 0x61442e, roughness: 0.8 })
+  );
+  trunk.position.y = 0.21 * scale;
+  trunk.scale.setScalar(scale);
+  const leaves = new THREE.Mesh(
+    sharedGeometry("field-tree-leaves", () => new THREE.ConeGeometry(0.36, 0.72, 9)),
+    sharedStandardMaterial("field-tree-leaves", { color: 0x365f46, roughness: 0.86 })
+  );
+  leaves.position.y = 0.74 * scale;
+  leaves.scale.setScalar(scale);
+  tree.add(trunk, leaves);
+  tree.position.copy(areaLocal(point, state));
+  tree.castShadow = true;
+  group.add(tree);
+}
+
+function addExpandedFieldTerrain(group: THREE.Group, state: GameState) {
+  const width = playableWidth(state);
+  const bottom = playableBottom(state);
+  addFieldPatch(group, state, { x: width * 0.5, y: bottom * 0.58 }, { x: width * 0.9, y: 160 }, 0x5f7b49, -0.16, 0.02);
+  addFieldPatch(group, state, { x: width * 0.46, y: bottom * 0.52 }, { x: width * 0.92, y: 68 }, 0x4e88a4, -0.16, 0.026);
+  addFieldPatch(group, state, { x: width * 0.5, y: bottom * 0.83 }, { x: width * 0.78, y: 96 }, 0xb19a68, 0.08, 0.024);
+  addFieldPatch(group, state, { x: width * 0.32, y: bottom * 0.27 }, { x: 520, y: 260 }, 0x6d5f44, 0.36, 0.024);
+  addFieldPatch(group, state, { x: width * 0.75, y: bottom * 0.34 }, { x: 620, y: 230 }, 0x59704c, -0.28, 0.024);
+
+  for (let i = 0; i < 18; i += 1) {
+    const x = 260 + ((i * 331) % Math.max(800, width - 520));
+    const y = 210 + ((i * 227) % Math.max(640, bottom - 420));
+    if (Math.abs(y - bottom * 0.52) < 90) continue;
+    addFieldTree(group, state, { x, y }, 0.85 + (i % 4) * 0.11);
+  }
+
+  for (let i = 0; i < 11; i += 1) {
+    addFieldRock(
+      group,
+      state,
+      { x: width * 0.12 + i * 92, y: bottom * 0.18 + Math.sin(i * 1.7) * 42 },
+      18 + (i % 3) * 7,
+      42 + (i % 4) * 16,
+      i % 2 === 0 ? 0x6f6b5d : 0x4c4b4f
+    );
+  }
+
+  for (let i = 0; i < 9; i += 1) {
+    addFieldRock(
+      group,
+      state,
+      { x: width * 0.72 + i * 58, y: bottom * 0.72 + Math.cos(i * 1.2) * 70 },
+      16 + (i % 2) * 10,
+      34 + (i % 5) * 12,
+      0x5a5d68
+    );
+  }
+
+  addFieldPatch(group, state, { x: 205, y: bottom - 190 }, { x: 220, y: 140 }, 0x9d8155, -0.05, 0.035);
+  addFieldPatch(group, state, { x: width - 240, y: 210 }, { x: 220, y: 140 }, 0x6f5a91, 0.22, 0.035);
+}
+
 function rebuildField(view: ThreeView, state: GameState) {
   clearGroup(view.field);
-  const width = state.view.w / WORLD_SCALE;
-  const depth = state.view.h / WORLD_SCALE;
-  const groundColor = state.area === "town" ? 0x6d6f59 : state.area === "dungeon" ? 0x393446 : 0x7b6747;
-  const gridColor = state.area === "town" ? 0xd8c799 : state.area === "dungeon" ? 0x886ab0 : 0xd2b477;
-  const gridFloorColor = state.area === "town" ? 0x60664b : state.area === "dungeon" ? 0x272233 : 0x66543b;
+  const worldWidth = state.area === "field" ? playableWidth(state) : state.view.w;
+  const worldDepth = state.area === "field" ? playableBottom(state) : state.view.h;
+  const width = worldWidth / WORLD_SCALE;
+  const depth = worldDepth / WORLD_SCALE;
+  const groundColor = state.area === "town" ? 0x6d6f59 : state.area === "dungeon" ? 0x393446 : 0x66724a;
+  const gridColor = state.area === "town" ? 0xd8c799 : state.area === "dungeon" ? 0x886ab0 : 0xb7a56f;
+  const gridFloorColor = state.area === "town" ? 0x60664b : state.area === "dungeon" ? 0x272233 : 0x4f5c3d;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
     new THREE.MeshStandardMaterial({ color: groundColor, roughness: 0.92 })
@@ -481,7 +602,7 @@ function rebuildField(view: ThreeView, state: GameState) {
   ground.receiveShadow = true;
   view.field.add(ground);
 
-  const grid = new THREE.GridHelper(Math.max(width, depth), 18, gridColor, gridFloorColor);
+  const grid = new THREE.GridHelper(Math.max(width, depth), state.area === "field" ? 42 : 18, gridColor, gridFloorColor);
   grid.position.y = 0.012;
   view.field.add(grid);
 
@@ -540,23 +661,7 @@ function rebuildField(view: ThreeView, state: GameState) {
   }
 
   if (state.area === "field") {
-    for (let i = 0; i < 10; i += 1) {
-      const tree = new THREE.Group();
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.07, 0.1, 0.42, 8),
-        new THREE.MeshStandardMaterial({ color: 0x61442e, roughness: 0.8 })
-      );
-      trunk.position.y = 0.21;
-      const leaves = new THREE.Mesh(
-        new THREE.ConeGeometry(0.36, 0.72, 9),
-        new THREE.MeshStandardMaterial({ color: 0x365f46, roughness: 0.86 })
-      );
-      leaves.position.y = 0.74;
-      tree.add(trunk, leaves);
-      const side = i % 2 === 0 ? -1 : 1;
-      tree.position.set(side * (width / 2 - 0.8 - (i % 3) * 0.38), 0, -depth / 2 + 1.0 + i * 0.7);
-      view.field.add(tree);
-    }
+    addExpandedFieldTerrain(view.field, state);
   }
 
   for (const warpPoint of warpPointsForArea(state)) view.field.add(createWarpPointMesh(warpPoint, state));
@@ -917,6 +1022,13 @@ function createTextSprite(text: string, color: string, opacity: number) {
 function renderGame(view: ThreeView, state: GameState) {
   clearGroup(view.units);
   clearGroup(view.effects);
+  const cameraCenter = cameraCenterForState(state);
+  const baseCenter = areaBaseCenter(state);
+  view.field.position.set(
+    (baseCenter.x - cameraCenter.x) / WORLD_SCALE,
+    0,
+    (baseCenter.y - cameraCenter.y) / WORLD_SCALE
+  );
 
   if (state.targetPoint) {
     const marker = new THREE.Mesh(
@@ -1021,6 +1133,14 @@ class ThreeGameRenderer {
     this.cameraYaw -= deltaX * 0.006;
     this.cameraPitch = clamp(this.cameraPitch - deltaY * 0.004, 0.18, 0.94);
     this.applyCamera();
+  }
+
+  screenToGamePoint(point: Point) {
+    const center = cameraCenterForState(this.state);
+    return {
+      x: point.x + center.x - this.state.view.w / 2,
+      y: point.y + center.y - this.state.view.h / 2
+    };
   }
 
   private applyCamera() {

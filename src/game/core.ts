@@ -176,31 +176,31 @@ type HudState = Pick<
 
 const formations: Formation[] = [
   {
-    name: "スペキュレイション風",
+    name: "突牙の楔",
     slots: [{ x: 44, y: 0 }, { x: -18, y: -44 }, { x: -76, y: 42 }, { x: -146, y: 0 }]
   },
   {
-    name: "ワールウインド風",
+    name: "旋風十字",
     slots: [{ x: 18, y: -72 }, { x: 18, y: 72 }, { x: -78, y: -42 }, { x: -78, y: 42 }]
   },
   {
-    name: "鳳天舞の陣風",
+    name: "星冠の守陣",
     slots: [{ x: -24, y: 0 }, { x: -104, y: -68 }, { x: -104, y: 68 }, { x: -164, y: 0 }]
   },
   {
-    name: "玄武陣風",
+    name: "黒曜方陣",
     slots: [{ x: -28, y: -34 }, { x: -28, y: 34 }, { x: -108, y: -34 }, { x: -108, y: 34 }]
   },
   {
-    name: "パワーレイズ風",
+    name: "蒼雷の後詰",
     slots: [{ x: -18, y: 0 }, { x: -90, y: -58 }, { x: -90, y: 58 }, { x: -156, y: 0 }]
   },
   {
-    name: "虎穴陣風",
+    name: "月盾の構え",
     slots: [{ x: -72, y: -52 }, { x: -72, y: 52 }, { x: -12, y: 0 }, { x: -142, y: 0 }]
   },
   {
-    name: "デザートランス風",
+    name: "砂槍の尖陣",
     slots: [{ x: 52, y: 0 }, { x: -48, y: -64 }, { x: -48, y: 64 }, { x: -136, y: 0 }]
   }
 ];
@@ -248,7 +248,7 @@ const areas: Record<AreaId, AreaDefinition> = {
   field: {
     id: "field",
     name: "フィールド",
-    description: "通常の探索地帯。敵がランダムに出現します。",
+    description: "広大な探索地帯。起伏のある地形で敵がランダムに出現します。",
     spawnRate: 1,
     bossInterval: 28,
     enemyScale: 1
@@ -838,6 +838,16 @@ function combatBottom(state: GameState) {
   return state.view.h - (state.view.w < 700 ? 285 : 118);
 }
 
+function playableWidth(state: GameState) {
+  if (state.area !== "field") return state.view.w;
+  return Math.max(2400, state.view.w * 2.65);
+}
+
+function playableBottom(state: GameState) {
+  if (state.area !== "field") return combatBottom(state);
+  return Math.max(1280, combatBottom(state) * 2.35);
+}
+
 function addLog(state: GameState, text: string) {
   state.logs = [text, ...state.logs].slice(0, 8);
 }
@@ -849,7 +859,7 @@ function currentArea(state: GameState) {
 function warpPointForArea(state: GameState): WarpPoint | null {
   const y = Math.min(combatBottom(state) - 94, 520);
   if (state.area === "town") return { x: state.view.w - 205, y, target: "field", label: "フィールドへ" };
-  if (state.area === "field") return { x: 185, y, target: "town", label: "町へ" };
+  if (state.area === "field") return { x: 210, y: playableBottom(state) - 190, target: "town", label: "町へ" };
   return null;
 }
 
@@ -859,7 +869,7 @@ function warpPointsForArea(state: GameState): WarpPoint[] {
   if (state.area === "field") {
     return [
       ...(primary ? [primary] : []),
-      { x: state.view.w - 205, y, target: "dungeon", label: "ダンジョンへ" }
+      { x: playableWidth(state) - 240, y: 210, target: "dungeon", label: "ダンジョンへ" }
     ];
   }
   if (state.area === "dungeon") return [{ x: 185, y, target: "field", label: "フィールドへ" }];
@@ -867,19 +877,19 @@ function warpPointsForArea(state: GameState): WarpPoint[] {
 }
 
 function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
-  const entryY = Math.min(combatBottom(state) - 94, 520);
+  const entryY = state.area === "field" ? playableBottom(state) - 190 : Math.min(combatBottom(state) - 94, 520);
   const entryAnchor =
     state.area === "town"
       ? { x: state.view.w - 335, y: entryY }
       : state.area === "field"
-        ? { x: fromArea === "town" ? 335 : state.view.w - 335, y: entryY }
+        ? { x: fromArea === "town" ? 335 : playableWidth(state) - 370, y: fromArea === "town" ? entryY : 260 }
         : state.area === "dungeon"
           ? { x: 335, y: entryY }
         : currentFormationAnchor(state);
   for (let i = 0; i < state.heroes.length; i += 1) {
     const slot = formations[state.formation].slots[i];
-    state.heroes[i].x = clamp(entryAnchor.x + slot.x, 80, state.view.w - 160);
-    state.heroes[i].y = clamp(entryAnchor.y + slot.y, 96, combatBottom(state));
+    state.heroes[i].x = clamp(entryAnchor.x + slot.x, 80, playableWidth(state) - 160);
+    state.heroes[i].y = clamp(entryAnchor.y + slot.y, 96, playableBottom(state));
   }
 }
 
@@ -956,7 +966,12 @@ function moveToward(unit: Point & { speed: number; facing?: number }, point: Poi
 }
 
 function damage(state: GameState, target: Enemy | Hero, amount: number, color = "#ffd47d") {
-  target.hp -= amount;
+  const heroIndex = state.heroes.indexOf(target as Hero);
+  if (heroIndex >= 0) {
+    setHeroHp(state, target as Hero, heroIndex, target.hp - amount);
+  } else {
+    target.hp -= amount;
+  }
   state.particles.push({
     x: target.x,
     y: target.y - 20,
@@ -996,8 +1011,8 @@ function randomSpawnPoint(state: GameState) {
   let point = { x: 180, y: 160 };
   for (let i = 0; i < 12; i += 1) {
     point = {
-      x: 150 + Math.random() * Math.max(180, state.view.w - 330),
-      y: 128 + Math.random() * Math.max(110, combatBottom(state) - 168)
+      x: 150 + Math.random() * Math.max(180, playableWidth(state) - 330),
+      y: 128 + Math.random() * Math.max(110, playableBottom(state) - 168)
     };
     if (state.heroes.every((hero) => hero.hp <= 0 || distance(hero, point) > 180)) return point;
   }
@@ -1062,8 +1077,8 @@ function moveHeroToFormationSlot(state: GameState, heroIndex: number) {
   const anchor = currentFormationAnchor(state);
   const target = clampFormationAnchor(state, { x: anchor.x, y: anchor.y });
   const hero = state.heroes[heroIndex];
-  hero.x = clamp(target.x + slot.x, 80, state.view.w - 160);
-  hero.y = clamp(target.y + slot.y, 96, combatBottom(state));
+  hero.x = clamp(target.x + slot.x, 80, playableWidth(state) - 160);
+  hero.y = clamp(target.y + slot.y, 96, playableBottom(state));
 }
 
 function setHeroHp(state: GameState, hero: Hero, heroIndex: number, hp: number) {
@@ -1072,14 +1087,27 @@ function setHeroHp(state: GameState, hero: Hero, heroIndex: number, hp: number) 
   const nextHp = clamp(hp, 0, stats.maxHp);
   if (wasDown && nextHp > 0) moveHeroToFormationSlot(state, heroIndex);
   hero.hp = nextHp;
+  if (!wasDown && nextHp <= 0 && state.selected === heroIndex) selectNextAliveHero(state, heroIndex);
+}
+
+function selectNextAliveHero(state: GameState, fromIndex: number) {
+  for (let offset = 1; offset <= state.heroes.length; offset += 1) {
+    const nextIndex = (fromIndex + offset) % state.heroes.length;
+    const nextHero = state.heroes[nextIndex];
+    if (nextHero.hp <= 0) continue;
+    state.selected = nextIndex;
+    state.status = `${state.heroes[fromIndex].name}が倒れたため、${nextHero.name}を選択中。`;
+    addLog(state, `${nextHero.name}に選択を切り替え。`);
+    return;
+  }
 }
 
 function clampFormationAnchor(state: GameState, anchor: Point) {
   const slots = formations[state.formation].slots;
   const minX = Math.max(...slots.map((slot) => 80 - slot.x));
-  const maxX = Math.min(...slots.map((slot) => state.view.w - 160 - slot.x));
+  const maxX = Math.min(...slots.map((slot) => playableWidth(state) - 160 - slot.x));
   const minY = Math.max(...slots.map((slot) => 96 - slot.y));
-  const maxY = Math.min(...slots.map((slot) => combatBottom(state) - slot.y));
+  const maxY = Math.min(...slots.map((slot) => playableBottom(state) - slot.y));
 
   return {
     x: clamp(anchor.x, minX, maxX),
@@ -1119,8 +1147,8 @@ function movePartyWithKeyboard(state: GameState, dt: number) {
     if (hero.hp <= 0) continue;
     const slot = formations[state.formation].slots[index];
     moveToward(hero, { x: clampedAnchor.x + slot.x, y: clampedAnchor.y + slot.y }, dt, 3.6, heroStats(hero).speed);
-    hero.x = clamp(hero.x, 80, state.view.w - 160);
-    hero.y = clamp(hero.y, 96, combatBottom(state));
+    hero.x = clamp(hero.x, 80, playableWidth(state) - 160);
+    hero.y = clamp(hero.y, 96, playableBottom(state));
   }
   return true;
 }
@@ -1266,8 +1294,8 @@ function updateGame(state: GameState, dt: number) {
       if (hero.hp <= 0) return;
       const slot = formations[state.formation].slots[index];
       moveToward(hero, { x: state.targetPoint!.x + slot.x, y: state.targetPoint!.y + slot.y }, dt, 1, heroStats(hero).speed);
-      hero.x = clamp(hero.x, 80, state.view.w - 160);
-      hero.y = clamp(hero.y, 96, combatBottom(state));
+      hero.x = clamp(hero.x, 80, playableWidth(state) - 160);
+      hero.y = clamp(hero.y, 96, playableBottom(state));
     });
   }
 
@@ -1574,8 +1602,8 @@ class GameEngine {
     const formationSlot = formations[this.state.formation].slots[activeSlot];
     const incoming = structuredClone(reserveHero);
     const outgoing = structuredClone(activeHero);
-    incoming.x = clamp(anchor.x + formationSlot.x, 80, this.state.view.w - 160);
-    incoming.y = clamp(anchor.y + formationSlot.y, 96, combatBottom(this.state));
+    incoming.x = clamp(anchor.x + formationSlot.x, 80, playableWidth(this.state) - 160);
+    incoming.y = clamp(anchor.y + formationSlot.y, 96, playableBottom(this.state));
     outgoing.x = 0;
     outgoing.y = 0;
 
@@ -1623,8 +1651,8 @@ class GameEngine {
 
   setMoveTarget(point: Point) {
     this.state.targetPoint = {
-      x: clamp(point.x, 100, this.state.view.w - 160),
-      y: clamp(point.y, 108, combatBottom(this.state))
+      x: clamp(point.x, 100, playableWidth(this.state) - 160),
+      y: clamp(point.y, 108, playableBottom(this.state))
     };
     this.state.orderPulse = 0.55;
     this.state.status = `隊列「${formations[this.state.formation].name}」で移動命令。`;
@@ -1703,6 +1731,8 @@ export {
   formations,
   heroStats,
   isMovementKey,
+  playableBottom,
+  playableWidth,
   shopOrder,
   shops,
   skillKeys,

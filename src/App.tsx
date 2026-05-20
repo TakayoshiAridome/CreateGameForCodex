@@ -176,10 +176,11 @@ function App() {
     if (!canvas) return;
     const engine = engineRef.current;
     const rect = canvas.getBoundingClientRect();
-    const point = {
+    const screenPoint = {
       x: (event.clientX - rect.left) * (engine.state.view.w / rect.width),
       y: (event.clientY - rect.top) * (engine.state.view.h / rect.height)
     };
+    const point = rendererRef.current?.screenToGamePoint(screenPoint) ?? screenPoint;
     engine.selectAt(point);
     setHud(engine.snapshot());
   };
