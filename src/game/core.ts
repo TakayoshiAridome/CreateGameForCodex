@@ -114,6 +114,11 @@ type AreaDefinition = {
   enemyScale: number;
 };
 
+type WarpPoint = Point & {
+  target: AreaId;
+  label: string;
+};
+
 type ShopDefinition = {
   id: ShopId;
   name: string;
@@ -841,6 +846,61 @@ function currentArea(state: GameState) {
   return areas[state.area];
 }
 
+function warpPointForArea(state: GameState): WarpPoint | null {
+  const y = Math.min(combatBottom(state) - 94, 520);
+  if (state.area === "town") return { x: state.view.w - 205, y, target: "field", label: "フィールドへ" };
+  if (state.area === "field") return { x: 185, y, target: "town", label: "町へ" };
+  return null;
+}
+
+function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
+  const entryY = Math.min(combatBottom(state) - 94, 520);
+  const entryAnchor =
+    state.area === "town"
+      ? { x: state.view.w - 335, y: entryY }
+      : fromArea === "town"
+        ? { x: 335, y: entryY }
+        : currentFormationAnchor(state);
+  for (let i = 0; i < state.heroes.length; i += 1) {
+    const slot = formations[state.formation].slots[i];
+    state.heroes[i].x = clamp(entryAnchor.x + slot.x, 80, state.view.w - 160);
+    state.heroes[i].y = clamp(entryAnchor.y + slot.y, 96, combatBottom(state));
+  }
+}
+
+function changeAreaState(state: GameState, area: AreaId) {
+  if (state.area === area) return false;
+  const fromArea = state.area;
+  state.area = area;
+  state.enemies = [];
+  state.particles = [];
+  state.targetPoint = null;
+  state.spawnTimer = area === "dungeon" ? 0.65 : 1.1;
+  state.bossTimer = areas[area].bossInterval;
+  state.status = `${areas[area].name}へ移動しました。${areas[area].description}`;
+  addLog(state, `${areas[area].name}へ移動。`);
+  if (area === "town") {
+    for (const hero of state.heroes) {
+      const stats = heroStats(hero);
+      setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 34);
+      hero.mp = clamp(hero.mp + 28, 0, stats.maxMp);
+    }
+  }
+  if ((fromArea === "town" && area === "field") || (fromArea === "field" && area === "town")) {
+    movePartyToAreaEntry(state, fromArea);
+    clearMovement(state);
+  }
+  return true;
+}
+
+function warpPartyIfOnPoint(state: GameState) {
+  const warpPoint = warpPointForArea(state);
+  if (!warpPoint) return false;
+  const anchor = currentFormationAnchor(state);
+  if (distance(anchor, warpPoint) > 120) return false;
+  return changeAreaState(state, warpPoint.target);
+}
+
 function nearestEnemy(state: GameState, hero: Hero) {
   let best: Enemy | null = null;
   let bestDist = Infinity;
@@ -1185,6 +1245,7 @@ function updateGame(state: GameState, dt: number) {
   }
 
   const keyboardMoved = movePartyWithKeyboard(state, dt);
+  if (keyboardMoved && warpPartyIfOnPoint(state)) return;
 
   if (state.targetPoint && !keyboardMoved) {
     state.heroes.forEach((hero, index) => {
@@ -1514,7 +1575,9 @@ class GameEngine {
   }
 
   changeArea(area: AreaId) {
+    if (changeAreaState(this.state, area)) return;
     if (this.state.area === area) return;
+    const fromArea = this.state.area;
     this.state.area = area;
     this.state.enemies = [];
     this.state.particles = [];
@@ -1529,6 +1592,9 @@ class GameEngine {
         setHeroHp(this.state, hero, this.state.heroes.indexOf(hero), hero.hp + 34);
         hero.mp = clamp(hero.mp + 28, 0, stats.maxMp);
       }
+    }
+    if ((fromArea === "town" && area === "field") || (fromArea === "field" && area === "town")) {
+      movePartyToAreaEntry(this.state, fromArea);
     }
   }
 
@@ -1551,6 +1617,11 @@ class GameEngine {
   }
 
   selectAt(point: Point) {
+    const warpPoint = warpPointForArea(this.state);
+    if (warpPoint && Math.hypot(point.x - warpPoint.x, point.y - warpPoint.y) < 120) {
+      this.changeArea(warpPoint.target);
+      return;
+    }
     const clickedHero = this.state.heroes.findIndex((hero) => Math.hypot(hero.x - point.x, hero.y - point.y) < 42);
     if (clickedHero >= 0) {
       this.selectHero(clickedHero);
@@ -1621,7 +1692,8 @@ export {
   shopOrder,
   shops,
   skillKeys,
-  upgradeCost
+  upgradeCost,
+  warpPointForArea
 };
 
-export type { AreaId, ConsumableId, ElementId, Enemy, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey };
+export type { AreaId, ConsumableId, ElementId, Enemy, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey, WarpPoint };
