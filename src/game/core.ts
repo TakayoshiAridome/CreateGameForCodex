@@ -1,6 +1,13 @@
 import { areaOrder, areas, cloneEquipment, consumableCatalog, createReserveHeroes, elementAdvantage, elementColors, elementLabels, equipmentCatalog, formations, initialHeroes, shopOrder, shops, skillKeys } from "./data";
 import type { AreaId, ConsumableId, ElementId, Enemy, Equipment, EquipmentBonus, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey, WarpPoint } from "./types";
 
+const HERO_DETECTION_RANGE = 360;
+const HERO_DETECTION_RANGE_CAP = 440;
+const PARTY_DETECTION_RANGE = 460;
+const ENEMY_DETECTION_RANGE = 320;
+const ELITE_DETECTION_BONUS = 60;
+const BOSS_DETECTION_BONUS = 150;
+
 function createGameState(): GameState {
   return {
     view: { w: 1280, h: 720 },
@@ -263,12 +270,43 @@ function warpPartyIfOnPoint(state: GameState) {
 }
 
 function nearestEnemy(state: GameState, hero: Hero) {
+  return nearestEnemyToPoint(state, hero, heroDetectionRange(hero));
+}
+
+function nearestEnemyToPoint(state: GameState, point: Point, maxDistance = Infinity) {
   let best: Enemy | null = null;
-  let bestDist = Infinity;
+  let bestDist = maxDistance;
   for (const enemy of state.enemies) {
-    const d = distance(hero, enemy);
+    const d = distance(point, enemy);
     if (d < bestDist) {
       best = enemy;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+function heroDetectionRange(hero: Hero) {
+  return clamp(heroStats(hero).range + 110, HERO_DETECTION_RANGE, HERO_DETECTION_RANGE_CAP);
+}
+
+function partyDetectionRange(state: GameState) {
+  const aliveHeroes = state.heroes.filter((hero) => hero.hp > 0);
+  const heroes = aliveHeroes.length > 0 ? aliveHeroes : state.heroes;
+  return Math.max(PARTY_DETECTION_RANGE, ...heroes.map((hero) => heroDetectionRange(hero)));
+}
+
+function enemyDetectionRange(enemy: Enemy) {
+  return ENEMY_DETECTION_RANGE + (enemy.type === "boss" ? BOSS_DETECTION_BONUS : enemy.type === "duelist" ? ELITE_DETECTION_BONUS : 0);
+}
+
+function nearestHeroForEnemy(enemy: Enemy, heroes: Hero[]) {
+  let best: Hero | null = null;
+  let bestDist = enemyDetectionRange(enemy);
+  for (const hero of heroes) {
+    const d = distance(enemy, hero);
+    if (d < bestDist) {
+      best = hero;
       bestDist = d;
     }
   }
@@ -480,13 +518,49 @@ function movePartyWithKeyboard(state: GameState, dt: number) {
   state.targetPoint = null;
   state.orderPulse = Math.max(state.orderPulse, 0.18);
 
+  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 3.6);
+  return true;
+}
+
+function formationSlotPoint(state: GameState, anchor: Point, index: number) {
+  const slot = formations[state.formation].slots[index];
+  return {
+    x: anchor.x + slot.x,
+    y: anchor.y + slot.y
+  };
+}
+
+function moveHeroesToFormationAnchor(state: GameState, anchor: Point, dt: number, multiplier = 1.2) {
   for (const [index, hero] of state.heroes.entries()) {
     if (hero.hp <= 0) continue;
-    const slot = formations[state.formation].slots[index];
-    moveToward(hero, { x: clampedAnchor.x + slot.x, y: clampedAnchor.y + slot.y }, dt, 3.6, heroStats(hero).speed);
+    moveToward(hero, formationSlotPoint(state, anchor, index), dt, multiplier, heroStats(hero).speed);
     hero.x = clamp(hero.x, 80, playableWidth(state) - 160);
     hero.y = clamp(hero.y, 96, playableBottom(state));
   }
+}
+
+function keepFormationDuringCombat(state: GameState, dt: number) {
+  const anchor = currentFormationAnchor(state);
+  const target = nearestEnemyToPoint(state, anchor, partyDetectionRange(state));
+  if (!target) {
+    moveHeroesToFormationAnchor(state, anchor, dt, 0.95);
+    return false;
+  }
+
+  const aliveEntries = state.heroes
+    .map((hero, index) => ({ hero, index }))
+    .filter(({ hero }) => hero.hp > 0);
+  const needsApproach = aliveEntries.some(({ hero, index }) => distance(formationSlotPoint(state, anchor, index), target) > heroStats(hero).range * 0.92);
+  if (!needsApproach) {
+    moveHeroesToFormationAnchor(state, anchor, dt, 1.15);
+    return false;
+  }
+
+  const slowestSpeed = Math.min(...aliveEntries.map(({ hero }) => heroStats(hero).speed));
+  const nextAnchor = { ...anchor, speed: slowestSpeed };
+  moveToward(nextAnchor, target, dt, 0.78, slowestSpeed);
+  const clampedAnchor = clampFormationAnchor(state, nextAnchor);
+  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 1.65);
   return true;
 }
 
@@ -627,13 +701,7 @@ function updateGame(state: GameState, dt: number) {
   if (keyboardMoved && warpPartyIfOnPoint(state)) return;
 
   if (state.targetPoint && !keyboardMoved) {
-    state.heroes.forEach((hero, index) => {
-      if (hero.hp <= 0) return;
-      const slot = formations[state.formation].slots[index];
-      moveToward(hero, { x: state.targetPoint!.x + slot.x, y: state.targetPoint!.y + slot.y }, dt, 1, heroStats(hero).speed);
-      hero.x = clamp(hero.x, 80, playableWidth(state) - 160);
-      hero.y = clamp(hero.y, 96, playableBottom(state));
-    });
+    moveHeroesToFormationAnchor(state, state.targetPoint, dt, 1);
   }
 
   if (state.area === "town") {
@@ -666,6 +734,8 @@ function updateGame(state: GameState, dt: number) {
     state.bossTimer = Math.max(14, area.bossInterval + 14 - state.bossCount * 2);
   }
 
+  if (!state.targetPoint && !keyboardMoved) keepFormationDuringCombat(state, dt);
+
   for (const hero of state.heroes) {
     if (hero.hp <= 0) continue;
     hero.cooldown = Math.max(0, hero.cooldown - dt);
@@ -680,7 +750,7 @@ function updateGame(state: GameState, dt: number) {
     if (!target) continue;
     const d = distance(hero, target);
     if (d > stats.range && !state.targetPoint && !keyboardMoved) {
-      moveToward(hero, target, dt, 0.62, stats.speed);
+      faceToward(hero, target);
     } else if (d <= stats.range && hero.cooldown <= 0) {
       faceToward(hero, target);
       hero.attacking = true;
@@ -695,7 +765,8 @@ function updateGame(state: GameState, dt: number) {
 
   for (const enemy of state.enemies) {
     enemy.cooldown = Math.max(0, enemy.cooldown - dt);
-    const target = aliveHeroes.reduce((best, hero) => (distance(enemy, hero) < distance(enemy, best) ? hero : best), aliveHeroes[0]);
+    const target = nearestHeroForEnemy(enemy, aliveHeroes);
+    if (!target) continue;
     if (distance(enemy, target) > enemy.radius + 28) {
       moveToward(enemy, target, dt);
     } else if (enemy.cooldown <= 0) {
