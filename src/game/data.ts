@@ -2,32 +2,8 @@ import type { AreaDefinition, AreaId, ConsumableItem, ElementId, Equipment, Equi
 
 export const formations: Formation[] = [
   {
-    name: "突牙の楔",
-    slots: [{ x: 44, y: 0 }, { x: -18, y: -44 }, { x: -76, y: 42 }, { x: -146, y: 0 }]
-  },
-  {
-    name: "旋風十字",
-    slots: [{ x: 18, y: -72 }, { x: 18, y: 72 }, { x: -78, y: -42 }, { x: -78, y: 42 }]
-  },
-  {
-    name: "星冠の守陣",
-    slots: [{ x: -24, y: 0 }, { x: -104, y: -68 }, { x: -104, y: 68 }, { x: -164, y: 0 }]
-  },
-  {
-    name: "黒曜方陣",
-    slots: [{ x: -28, y: -34 }, { x: -28, y: 34 }, { x: -108, y: -34 }, { x: -108, y: 34 }]
-  },
-  {
-    name: "蒼雷の後詰",
-    slots: [{ x: -18, y: 0 }, { x: -90, y: -58 }, { x: -90, y: 58 }, { x: -156, y: 0 }]
-  },
-  {
-    name: "月盾の構え",
-    slots: [{ x: -72, y: -52 }, { x: -72, y: 52 }, { x: -12, y: 0 }, { x: -142, y: 0 }]
-  },
-  {
-    name: "砂槍の尖陣",
-    slots: [{ x: 52, y: 0 }, { x: -48, y: -64 }, { x: -48, y: 64 }, { x: -136, y: 0 }]
+    name: "一尖双翼",
+    slots: [{ x: 64, y: 0 }, { x: -40, y: -58 }, { x: -40, y: 58 }, { x: -148, y: 0 }]
   }
 ];
 

@@ -451,7 +451,7 @@ function App() {
               {hud.paused ? "Resume" : "Hold"}
             </button>
             <button type="button" title="隊列変更" onClick={changeFormation}>
-              {formations[hud.formation].name}
+              {(formations[hud.formation] ?? formations[0]).name}
             </button>
             <div className="area-tabs" aria-label="エリア移動">
               {areaOrder.map((area) => (

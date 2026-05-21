@@ -220,7 +220,12 @@ function warpPointsForArea(state: GameState): WarpPoint[] {
   return primary ? [primary] : [];
 }
 
+function ensureFormationIndex(state: GameState) {
+  if (!formations[state.formation]) state.formation = 0;
+}
+
 function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
+  ensureFormationIndex(state);
   const entryY = playableBottom(state) - 190;
   const entryAnchor =
     state.area === "town"
@@ -424,6 +429,7 @@ function spawnEnemy(state: GameState, boss = false) {
 }
 
 function currentFormationAnchor(state: GameState) {
+  ensureFormationIndex(state);
   const aliveEntries = state.heroes
     .map((hero, index) => ({ hero, index }))
     .filter(({ hero }) => hero.hp > 0);
@@ -448,6 +454,7 @@ function currentFormationAnchor(state: GameState) {
 }
 
 function moveHeroToFormationSlot(state: GameState, heroIndex: number) {
+  ensureFormationIndex(state);
   const slot = formations[state.formation].slots[heroIndex];
   const anchor = currentFormationAnchor(state);
   const target = clampFormationAnchor(state, { x: anchor.x, y: anchor.y });
@@ -478,6 +485,7 @@ function selectNextAliveHero(state: GameState, fromIndex: number) {
 }
 
 function clampFormationAnchor(state: GameState, anchor: Point) {
+  ensureFormationIndex(state);
   const slots = formations[state.formation].slots;
   const minX = Math.max(...slots.map((slot) => 80 - slot.x));
   const maxX = Math.min(...slots.map((slot) => playableWidth(state) - 160 - slot.x));
@@ -491,6 +499,7 @@ function clampFormationAnchor(state: GameState, anchor: Point) {
 }
 
 function queueFormationMove(state: GameState) {
+  ensureFormationIndex(state);
   state.targetPoint = currentFormationAnchor(state);
   state.orderPulse = 0.55;
   state.status = `隊列「${formations[state.formation].name}」に変更。`;
@@ -523,6 +532,7 @@ function movePartyWithKeyboard(state: GameState, dt: number) {
 }
 
 function formationSlotPoint(state: GameState, anchor: Point, index: number) {
+  ensureFormationIndex(state);
   const slot = formations[state.formation].slots[index];
   return {
     x: anchor.x + slot.x,
@@ -994,12 +1004,14 @@ class GameEngine {
   }
 
   changeFormation() {
+    ensureFormationIndex(this.state);
     this.state.formation = (this.state.formation + 1) % formations.length;
     addLog(this.state, `隊列を ${formations[this.state.formation].name} に変更。`);
     queueFormationMove(this.state);
   }
 
   swapPartyMember(activeIndex: number, reserveIndex: number) {
+    ensureFormationIndex(this.state);
     const activeSlot = Math.trunc(clamp(activeIndex, 0, this.state.heroes.length - 1));
     const reserveSlot = Math.trunc(clamp(reserveIndex, 0, this.state.reserveHeroes.length - 1));
     const activeHero = this.state.heroes[activeSlot];
@@ -1058,6 +1070,7 @@ class GameEngine {
   }
 
   setMoveTarget(point: Point) {
+    ensureFormationIndex(this.state);
     this.state.targetPoint = {
       x: clamp(point.x, 100, playableWidth(this.state) - 160),
       y: clamp(point.y, 108, playableBottom(this.state))
@@ -1109,6 +1122,7 @@ class GameEngine {
   }
 }
 function snapshotHud(state: GameState): HudState {
+  ensureFormationIndex(state);
   return {
     selected: state.selected,
     paused: state.paused,
