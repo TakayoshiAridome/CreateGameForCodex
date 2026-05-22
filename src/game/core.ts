@@ -22,6 +22,7 @@ function createGameState(): GameState {
     bossTimer: 28,
     bossCount: 0,
     cameraYaw: 0.725,
+    formationFront: { x: 1, y: 0 },
     targetPoint: null,
     movement: {
       up: false,
@@ -224,6 +225,51 @@ function ensureFormationIndex(state: GameState) {
   if (!formations[state.formation]) state.formation = 0;
 }
 
+function setFormationFront(state: GameState, vector: Point, blend = 1) {
+  const length = Math.hypot(vector.x, vector.y);
+  if (length < 0.001) return;
+  const target = {
+    x: vector.x / length,
+    y: vector.y / length
+  };
+  const amount = clamp(blend, 0, 1);
+  const next = {
+    x: state.formationFront.x + (target.x - state.formationFront.x) * amount,
+    y: state.formationFront.y + (target.y - state.formationFront.y) * amount
+  };
+  const nextLength = Math.hypot(next.x, next.y) || 1;
+  state.formationFront = {
+    x: next.x / nextLength,
+    y: next.y / nextLength
+  };
+}
+
+function setFormationFrontToward(state: GameState, from: Point, to: Point, blend = 1) {
+  setFormationFront(state, { x: to.x - from.x, y: to.y - from.y }, blend);
+}
+
+function formationSlotForHero(state: GameState, heroIndex: number) {
+  ensureFormationIndex(state);
+  const slots = formations[state.formation].slots;
+  const front = state.formationFront;
+  const slotOrder = slots
+    .map((slot, index) => ({ index, frontScore: slot.x * front.x + slot.y * front.y }))
+    .sort((a, b) => b.frontScore - a.frontScore || a.index - b.index);
+  const heroOrder = state.heroes
+    .map((hero, index) => ({ index, frontRank: heroFrontRank(hero) }))
+    .sort((a, b) => a.frontRank - b.frontRank || a.index - b.index);
+  const assignedSlot = slotOrder[heroOrder.findIndex((entry) => entry.index === heroIndex)] ?? slotOrder[heroIndex] ?? slotOrder[0];
+  return slots[assignedSlot.index];
+}
+
+function heroFrontRank(hero: Hero) {
+  if (hero.role === "ファイター") return 0;
+  if (hero.role === "ガンナー") return 1;
+  if (hero.role === "ウィザード") return 2;
+  if (hero.role === "ヒーラー") return 3;
+  return 2;
+}
+
 function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
   ensureFormationIndex(state);
   const entryY = playableBottom(state) - 190;
@@ -236,7 +282,7 @@ function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
           ? { x: 350, y: entryY }
         : currentFormationAnchor(state);
   for (let i = 0; i < state.heroes.length; i += 1) {
-    const slot = formations[state.formation].slots[i];
+    const slot = formationSlotForHero(state, i);
     state.heroes[i].x = clamp(entryAnchor.x + slot.x, 80, playableWidth(state) - 160);
     state.heroes[i].y = clamp(entryAnchor.y + slot.y, 96, playableBottom(state));
   }
@@ -438,11 +484,10 @@ function currentFormationAnchor(state: GameState) {
     (center, { hero }) => ({ x: center.x + hero.x / entries.length, y: center.y + hero.y / entries.length }),
     { x: 0, y: 0 }
   );
-  const slots = formations[state.formation].slots;
   const slotCenter = entries.reduce(
     (center, { index }) => ({
-      x: center.x + slots[index].x / entries.length,
-      y: center.y + slots[index].y / entries.length
+      x: center.x + formationSlotForHero(state, index).x / entries.length,
+      y: center.y + formationSlotForHero(state, index).y / entries.length
     }),
     { x: 0, y: 0 }
   );
@@ -455,7 +500,7 @@ function currentFormationAnchor(state: GameState) {
 
 function moveHeroToFormationSlot(state: GameState, heroIndex: number) {
   ensureFormationIndex(state);
-  const slot = formations[state.formation].slots[heroIndex];
+  const slot = formationSlotForHero(state, heroIndex);
   const anchor = currentFormationAnchor(state);
   const target = clampFormationAnchor(state, { x: anchor.x, y: anchor.y });
   const hero = state.heroes[heroIndex];
@@ -486,7 +531,7 @@ function selectNextAliveHero(state: GameState, fromIndex: number) {
 
 function clampFormationAnchor(state: GameState, anchor: Point) {
   ensureFormationIndex(state);
-  const slots = formations[state.formation].slots;
+  const slots = state.heroes.map((_, index) => formationSlotForHero(state, index));
   const minX = Math.max(...slots.map((slot) => 80 - slot.x));
   const maxX = Math.min(...slots.map((slot) => playableWidth(state) - 160 - slot.x));
   const minY = Math.max(...slots.map((slot) => 96 - slot.y));
@@ -520,6 +565,7 @@ function movePartyWithKeyboard(state: GameState, dt: number) {
     y: right.y * inputX + down.y * inputY
   };
   const speed = 178;
+  setFormationFront(state, movement, dt * 3.5);
   const anchor = currentFormationAnchor(state);
   anchor.x += movement.x * speed * dt;
   anchor.y += movement.y * speed * dt;
@@ -527,42 +573,67 @@ function movePartyWithKeyboard(state: GameState, dt: number) {
   state.targetPoint = null;
   state.orderPulse = Math.max(state.orderPulse, 0.18);
 
-  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 3.6);
+  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 0.65, { ...movement, speed });
   return true;
 }
 
 function formationSlotPoint(state: GameState, anchor: Point, index: number) {
-  ensureFormationIndex(state);
-  const slot = formations[state.formation].slots[index];
+  const slot = formationSlotForHero(state, index);
   return {
     x: anchor.x + slot.x,
     y: anchor.y + slot.y
   };
 }
 
-function moveHeroesToFormationAnchor(state: GameState, anchor: Point, dt: number, multiplier = 1.2) {
+function movementDrift(from: Point, to: Point, speed: number) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 8) return undefined;
+  return {
+    x: dx / length,
+    y: dy / length,
+    speed
+  };
+}
+
+function moveHeroesToFormationAnchor(state: GameState, anchor: Point, dt: number, multiplier = 1.2, drift?: Point & { speed: number }) {
   for (const [index, hero] of state.heroes.entries()) {
     if (hero.hp <= 0) continue;
+    let driftFacing: number | null = null;
+    if (drift) {
+      const stats = heroStats(hero);
+      const step = Math.min(drift.speed, stats.speed) * dt;
+      hero.x += drift.x * step;
+      hero.y += drift.y * step;
+      driftFacing = Math.atan2(drift.x, drift.y);
+      hero.facing = driftFacing;
+      hero.moving = true;
+      hero.runTime = (hero.runTime ?? 0) + step * 0.055;
+    }
     moveToward(hero, formationSlotPoint(state, anchor, index), dt, multiplier, heroStats(hero).speed);
+    if (driftFacing !== null) hero.facing = driftFacing;
     hero.x = clamp(hero.x, 80, playableWidth(state) - 160);
     hero.y = clamp(hero.y, 96, playableBottom(state));
   }
 }
 
 function keepFormationDuringCombat(state: GameState, dt: number) {
-  const anchor = currentFormationAnchor(state);
+  let anchor = currentFormationAnchor(state);
   const target = nearestEnemyToPoint(state, anchor, partyDetectionRange(state));
   if (!target) {
-    moveHeroesToFormationAnchor(state, anchor, dt, 0.95);
+    moveHeroesToFormationAnchor(state, anchor, dt, 0.75);
     return false;
   }
+  setFormationFrontToward(state, anchor, target, dt * 3.2);
+  anchor = currentFormationAnchor(state);
 
   const aliveEntries = state.heroes
     .map((hero, index) => ({ hero, index }))
     .filter(({ hero }) => hero.hp > 0);
   const needsApproach = aliveEntries.some(({ hero, index }) => distance(formationSlotPoint(state, anchor, index), target) > heroStats(hero).range * 0.92);
   if (!needsApproach) {
-    moveHeroesToFormationAnchor(state, anchor, dt, 1.15);
+    moveHeroesToFormationAnchor(state, anchor, dt, 0.9);
     return false;
   }
 
@@ -570,7 +641,7 @@ function keepFormationDuringCombat(state: GameState, dt: number) {
   const nextAnchor = { ...anchor, speed: slowestSpeed };
   moveToward(nextAnchor, target, dt, 0.78, slowestSpeed);
   const clampedAnchor = clampFormationAnchor(state, nextAnchor);
-  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 1.65);
+  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 0.55, movementDrift(anchor, clampedAnchor, slowestSpeed * 0.78));
   return true;
 }
 
@@ -711,7 +782,9 @@ function updateGame(state: GameState, dt: number) {
   if (keyboardMoved && warpPartyIfOnPoint(state)) return;
 
   if (state.targetPoint && !keyboardMoved) {
-    moveHeroesToFormationAnchor(state, state.targetPoint, dt, 1);
+    const anchor = currentFormationAnchor(state);
+    setFormationFrontToward(state, anchor, state.targetPoint, dt * 3.5);
+    moveHeroesToFormationAnchor(state, state.targetPoint, dt, 0.45, movementDrift(anchor, state.targetPoint, 150));
   }
 
   if (state.area === "town") {

@@ -139,6 +139,7 @@ export type GameState = {
   bossTimer: number;
   bossCount: number;
   cameraYaw: number;
+  formationFront: Point;
   targetPoint: Point | null;
   movement: {
     up: boolean;
