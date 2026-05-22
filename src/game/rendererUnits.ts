@@ -17,8 +17,22 @@ const LUCERIA_MODEL_URL = "/assets/luceria_swordsaint_apoze.glb";
 const LUCERIA_IDLE_MODEL_URL = "/assets/luceria_swordsaint_idle.glb";
 const LUCERIA_RUN_MODEL_URL = "/assets/luceria_swordsaint_run.glb";
 const LUCERIA_ATTACK_MODEL_URL = "/assets/luceria_swordsaint_attack.glb";
+const LUCERIA_CROSSBLADE_MODEL_URL = "/assets/luceria_crossblade.glb";
 const LUCERIA_SATURATION = 1.62;
 const LUCERIA_RUN_VERTICAL_OFFSET = 0.18;
+const LUCERIA_RIGHT_HAND_BONE = "RightHand";
+const LUCERIA_CROSSBLADE_SCALE = 1.18;
+const LUCERIA_CROSSBLADE_ROTATION = new THREE.Euler(0.16, -0.08, -0.86);
+const LUCERIA_CROSSBLADE_RUN_ROTATION = new THREE.Euler(0.18, -0.12, -0.82);
+const LUCERIA_CROSSBLADE_GRIP_OFFSET = new THREE.Vector3(-0.37, 0.22, 0.03);
+const LUCERIA_CROSSBLADE_RUN_LOCAL_GRIP_OFFSET = LUCERIA_CROSSBLADE_GRIP_OFFSET.clone().multiplyScalar(100);
+const LUCERIA_CROSSBLADE_HAND_OFFSET = new THREE.Vector3();
+const LUCERIA_CROSSBLADE_GRIP_POINT = LUCERIA_CROSSBLADE_GRIP_OFFSET.clone().negate().applyQuaternion(new THREE.Quaternion().setFromEuler(LUCERIA_CROSSBLADE_ROTATION).invert());
+const luceriaHandWorldPosition = new THREE.Vector3();
+const luceriaCrossbladeOffset = new THREE.Vector3();
+const luceriaHandWorldQuaternion = new THREE.Quaternion();
+const luceriaWeaponParentWorldQuaternion = new THREE.Quaternion();
+const luceriaCrossbladeGripQuaternion = new THREE.Quaternion().setFromEuler(LUCERIA_CROSSBLADE_ROTATION);
 let luceriaTexture: THREE.Texture | null = null;
 let luceriaGltfModel: THREE.Group | null = null;
 let luceriaGltfLoading = false;
@@ -35,6 +49,9 @@ let luceriaAttackGltfModel: THREE.Group | null = null;
 let luceriaAttackGltfClips: THREE.AnimationClip[] = [];
 let luceriaAttackGltfLoading = false;
 let luceriaAttackGltfFailed = false;
+let luceriaCrossbladeModel: THREE.Group | null = null;
+let luceriaCrossbladeLoading = false;
+let luceriaCrossbladeFailed = false;
 const luceriaAnimationInstances: Partial<Record<LuceriaAnimationKind, LuceriaAnimationInstance>> = {};
 
 function heroFacingAngle(hero: Hero) {
@@ -152,6 +169,18 @@ function normalizeLuceriaModel(model: THREE.Group) {
   model.position.set(-center.x, -box.min.y - 0.3, -center.z);
 }
 
+function normalizeLuceriaCrossblade(model: THREE.Group) {
+  model.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialSize = initialBox.getSize(new THREE.Vector3());
+  const scale = 1.06 / Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.set(-center.x, -center.y, -center.z);
+}
+
 function loadLuceriaGltfModel() {
   if (luceriaGltfModel || luceriaGltfLoading || luceriaGltfFailed) return luceriaGltfModel;
   luceriaGltfLoading = true;
@@ -240,6 +269,27 @@ function loadLuceriaAttackGltfModel() {
   return luceriaAttackGltfModel;
 }
 
+function loadLuceriaCrossbladeModel() {
+  if (luceriaCrossbladeModel || luceriaCrossbladeLoading || luceriaCrossbladeFailed) return luceriaCrossbladeModel;
+  luceriaCrossbladeLoading = true;
+  new GLTFLoader().load(
+    LUCERIA_CROSSBLADE_MODEL_URL,
+    (gltf) => {
+      luceriaCrossbladeModel = gltf.scene;
+      normalizeLuceriaCrossblade(luceriaCrossbladeModel);
+      markSharedObject(luceriaCrossbladeModel);
+      luceriaCrossbladeLoading = false;
+    },
+    undefined,
+    (error) => {
+      console.warn("Failed to load Luceria Crossblade GLB model.", error);
+      luceriaCrossbladeFailed = true;
+      luceriaCrossbladeLoading = false;
+    }
+  );
+  return luceriaCrossbladeModel;
+}
+
 function createLuceriaAnimatedInstance(kind: LuceriaAnimationKind, source: THREE.Group | null, clips: THREE.AnimationClip[], time: number, verticalOffset = 0) {
   if (!source) return null;
   const clip = clips[0] ?? null;
@@ -271,6 +321,103 @@ function createLuceriaRunInstance(hero: Hero) {
 
 function createLuceriaAttackInstance(hero: Hero) {
   return createLuceriaAnimatedInstance("attack", loadLuceriaAttackGltfModel(), luceriaAttackGltfClips, hero.attackTime * 1.55);
+}
+
+function createLuceriaCrossbladeInstance() {
+  const source = loadLuceriaCrossbladeModel();
+  if (!source) return null;
+  const weapon = cloneSkeleton(source) as THREE.Group;
+  weapon.name = "LuceriaCrossblade";
+  weapon.scale.multiplyScalar(LUCERIA_CROSSBLADE_SCALE);
+  return weapon;
+}
+
+function createLuceriaVisibleFallbackBlade() {
+  const weapon = new THREE.Group();
+  weapon.name = "LuceriaCrossblade";
+  const blade = new THREE.Mesh(
+    sharedGeometry("luceria-visible-fallback-blade", () => new THREE.BoxGeometry(0.045, 1.05, 0.025)),
+    sharedStandardMaterial("luceria-visible-fallback-blade", { color: 0xe8f3ff, roughness: 0.2, metalness: 0.82 })
+  );
+  blade.position.y = -0.38;
+  weapon.add(blade);
+
+  const guard = new THREE.Mesh(
+    sharedGeometry("luceria-visible-fallback-guard", () => new THREE.BoxGeometry(0.36, 0.05, 0.06)),
+    sharedStandardMaterial("luceria-visible-fallback-guard", { color: 0xd5a85d, roughness: 0.28, metalness: 0.75 })
+  );
+  guard.position.y = 0.12;
+  weapon.add(guard);
+
+  const gem = new THREE.Mesh(
+    sharedGeometry("luceria-visible-fallback-gem", () => new THREE.OctahedronGeometry(0.065)),
+    sharedStandardMaterial("luceria-visible-fallback-gem", { color: 0x2f8fff, roughness: 0.18, metalness: 0.15, emissive: 0x0b3b7a, emissiveIntensity: 0.55 })
+  );
+  gem.position.y = 0.12;
+  weapon.add(gem);
+  return weapon;
+}
+
+function crossbladeOffsetForRotation(rotation: THREE.Euler) {
+  return luceriaCrossbladeOffset.copy(LUCERIA_CROSSBLADE_GRIP_POINT).applyEuler(rotation).negate();
+}
+
+function crossbladeOffsetForQuaternion(rotation: THREE.Quaternion) {
+  return luceriaCrossbladeOffset.copy(LUCERIA_CROSSBLADE_GRIP_POINT).applyQuaternion(rotation).negate();
+}
+
+function placeLuceriaCrossbladeAtRightHand(gltfModel: THREE.Group, weaponParent: THREE.Group, weapon: THREE.Group, rotation: THREE.Euler, handOffset: THREE.Vector3, followHandRotation: boolean) {
+  const rightHand = gltfModel.getObjectByName(LUCERIA_RIGHT_HAND_BONE);
+  if (!rightHand) return false;
+  weaponParent.updateMatrixWorld(true);
+  gltfModel.updateMatrixWorld(true);
+  rightHand.updateWorldMatrix(true, false);
+  rightHand.getWorldPosition(luceriaHandWorldPosition);
+  weaponParent.worldToLocal(luceriaHandWorldPosition);
+  weapon.position.copy(luceriaHandWorldPosition);
+  weapon.position.add(handOffset);
+  if (followHandRotation) {
+    rightHand.getWorldQuaternion(luceriaHandWorldQuaternion);
+    weaponParent.getWorldQuaternion(luceriaWeaponParentWorldQuaternion).invert();
+    weapon.quaternion.copy(luceriaWeaponParentWorldQuaternion).multiply(luceriaHandWorldQuaternion).multiply(luceriaCrossbladeGripQuaternion);
+    weapon.position.add(crossbladeOffsetForQuaternion(weapon.quaternion));
+  } else {
+    weapon.rotation.copy(rotation);
+    weapon.position.add(crossbladeOffsetForRotation(rotation));
+  }
+  return true;
+}
+
+function removeLuceriaCrossblade(parent: THREE.Group) {
+  for (const child of [...parent.children]) {
+    if (child.name === "LuceriaCrossblade") parent.remove(child);
+  }
+}
+
+function attachLuceriaCrossblade(gltfModel: THREE.Group, weaponParent: THREE.Group, rotation: THREE.Euler, handOffset: THREE.Vector3, followHandRotation: boolean) {
+  removeLuceriaCrossblade(weaponParent);
+  const crossblade = createLuceriaCrossbladeInstance() ?? createLuceriaVisibleFallbackBlade();
+  if (!placeLuceriaCrossbladeAtRightHand(gltfModel, weaponParent, crossblade, rotation, handOffset, followHandRotation)) {
+    crossblade.position.set(0.37, 0.37, 0.06);
+    crossblade.position.add(handOffset);
+    crossblade.position.add(crossbladeOffsetForRotation(rotation));
+    crossblade.rotation.copy(rotation);
+  }
+  weaponParent.add(crossblade);
+  return true;
+}
+
+function attachLuceriaRunCrossblade(gltfModel: THREE.Group) {
+  const rightHand = gltfModel.getObjectByName(LUCERIA_RIGHT_HAND_BONE);
+  if (!rightHand) return false;
+  const existing = rightHand.getObjectByName("LuceriaCrossblade");
+  if (existing) rightHand.remove(existing);
+  const crossblade = createLuceriaCrossbladeInstance() ?? createLuceriaVisibleFallbackBlade();
+  crossblade.scale.multiplyScalar(100);
+  crossblade.position.copy(LUCERIA_CROSSBLADE_RUN_LOCAL_GRIP_OFFSET);
+  crossblade.rotation.copy(LUCERIA_CROSSBLADE_RUN_ROTATION);
+  rightHand.add(crossblade);
+  return true;
 }
 
 function createHeroMesh(hero: Hero, state: GameState, index: number) {
@@ -423,6 +570,12 @@ function createLuceriaMesh(hero: Hero, state: GameState, index: number) {
   const gltfModel = (hero.attacking ? createLuceriaAttackInstance(hero) : hero.moving ? createLuceriaRunInstance(hero) : createLuceriaIdleInstance(hero)) ?? loadLuceriaGltfModel();
   if (gltfModel) {
     model.add(gltfModel);
+    if (hero.moving) {
+      removeLuceriaCrossblade(model);
+      attachLuceriaRunCrossblade(gltfModel);
+    } else {
+      attachLuceriaCrossblade(gltfModel, model, LUCERIA_CROSSBLADE_ROTATION, LUCERIA_CROSSBLADE_HAND_OFFSET, false);
+    }
     const selection = new THREE.Mesh(
       new THREE.TorusGeometry(0.34, 0.025, 8, 36),
       new THREE.MeshBasicMaterial({ color: selected ? 0xffe0a0 : hero.trim })
@@ -537,24 +690,29 @@ function createLuceriaMesh(hero: Hero, state: GameState, index: number) {
   ribbon.rotation.set(0.2, 0.25, 0.8);
   model.add(ribbon);
 
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.05, 0.018), new THREE.MeshStandardMaterial({ color: 0xdfe8f4, roughness: 0.22, metalness: 0.85 }));
-  blade.position.set(0.47, 0.32, 0.05);
-  blade.rotation.z = -0.86;
-  model.add(blade);
+  const crossblade = createLuceriaCrossbladeInstance();
+  if (crossblade) {
+    model.add(crossblade);
+  } else {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.05, 0.018), new THREE.MeshStandardMaterial({ color: 0xdfe8f4, roughness: 0.22, metalness: 0.85 }));
+    blade.position.set(0.47, 0.32, 0.05);
+    blade.rotation.z = -0.86;
+    model.add(blade);
 
-  const swordCore = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.78, 0.022), blueGem);
-  swordCore.position.copy(blade.position);
-  swordCore.rotation.copy(blade.rotation);
-  model.add(swordCore);
+    const swordCore = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.78, 0.022), blueGem);
+    swordCore.position.copy(blade.position);
+    swordCore.rotation.copy(blade.rotation);
+    model.add(swordCore);
 
-  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 0.045), gold);
-  guard.position.set(0.24, 0.54, 0.08);
-  guard.rotation.z = -0.86;
-  model.add(guard);
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.045, 0.045), gold);
+    guard.position.set(0.24, 0.54, 0.08);
+    guard.rotation.z = -0.86;
+    model.add(guard);
 
-  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), blueGem);
-  gem.position.set(0.25, 0.53, 0.12);
-  model.add(gem);
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), blueGem);
+    gem.position.set(0.25, 0.53, 0.12);
+    model.add(gem);
+  }
 
   const selection = new THREE.Mesh(
     new THREE.TorusGeometry(0.28, 0.025, 8, 32),

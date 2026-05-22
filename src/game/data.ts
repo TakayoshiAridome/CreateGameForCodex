@@ -464,7 +464,7 @@ export function createReserveHeroes(): Hero[] {
     ],
     skillCooldowns: emptySkillCooldowns(),
     equipment: createEquipment(
-      "セレスティアブレード",
+      "ルシェリア・クロスブレード",
       "星光の騎士鎧",
       "リボンの聖印",
       { attack: 8 },
