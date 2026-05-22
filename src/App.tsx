@@ -631,7 +631,7 @@ function App() {
           <span>1-4</span> メンバー選択
           <span>Space</span> Hold
           <span>Q</span> 隊列変更
-          <span>ERTY</span> スキル
+          <span>RFTG</span> スキル
         </div>
       </aside>
     </main>

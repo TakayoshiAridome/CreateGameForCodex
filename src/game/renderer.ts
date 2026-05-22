@@ -4,8 +4,71 @@ import { areaBaseCenter, cameraCenterForState, toWorld, WORLD_SCALE } from "./re
 import { rebuildField } from "./rendererTerrain";
 import { createEnemyMesh, createHeroMesh } from "./rendererUnits";
 import { clearGroup, createTextSprite, disposeThreeView, sharedBasicMaterial, sharedGeometry, type ThreeView } from "./rendererShared";
+import type { Particle } from "./types";
 
 const CAMERA_RADIUS = 15.3;
+
+function createSkillEffect(particle: Particle, state: GameState) {
+  const kind = particle.kind ?? "text";
+  if (kind === "text") return null;
+  const group = new THREE.Group();
+  const lifeRatio = clamp(particle.maxLife ? particle.life / particle.maxLife : particle.life, 0, 1);
+  const radius = (particle.radius ?? 90) / WORLD_SCALE;
+  const color = new THREE.Color(particle.color).getHex();
+  const material = sharedBasicMaterial(`skill-effect-${kind}-${particle.color}`, { color, transparent: true, opacity: 0.56, side: THREE.DoubleSide });
+
+  if (kind === "ring" || kind === "aura") {
+    const ring = new THREE.Mesh(sharedGeometry(`skill-${kind}-torus`, () => new THREE.TorusGeometry(1, kind === "aura" ? 0.035 : 0.022, 8, 52)), material);
+    ring.scale.setScalar(radius * (1.1 - lifeRatio * 0.25));
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+    if (kind === "aura") {
+      const disc = new THREE.Mesh(sharedGeometry("skill-aura-disc", () => new THREE.CircleGeometry(1, 42)), material);
+      disc.scale.setScalar(radius * 0.72);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.y = 0.018;
+      group.add(disc);
+    }
+    group.position.copy(toWorld(particle, state));
+    group.position.y = 0.08 + (1 - lifeRatio) * 0.28;
+    return group;
+  }
+
+  if (kind === "burst") {
+    const burst = new THREE.Mesh(sharedGeometry("skill-burst-sphere", () => new THREE.SphereGeometry(1, 18, 10)), material);
+    burst.scale.setScalar(radius * (1.15 - lifeRatio * 0.55));
+    group.add(burst);
+    group.position.copy(toWorld(particle, state));
+    group.position.y = 0.45;
+    return group;
+  }
+
+  if (kind === "slash") {
+    const slash = new THREE.Mesh(sharedGeometry("skill-slash-plane", () => new THREE.PlaneGeometry(1, 0.16)), material);
+    slash.scale.set(radius * 1.45, 1, 1);
+    slash.rotation.set(-0.28, particle.angle ?? 0, 0.42);
+    group.add(slash);
+    group.position.copy(toWorld(particle, state));
+    group.position.y = 0.82;
+    return group;
+  }
+
+  if (kind === "beam" && particle.x2 !== undefined && particle.y2 !== undefined) {
+    const from = toWorld(particle, state);
+    const to = toWorld({ x: particle.x2, y: particle.y2 }, state);
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const length = Math.hypot(dx, dz);
+    const beam = new THREE.Mesh(sharedGeometry("skill-beam-box", () => new THREE.BoxGeometry(1, 0.035, 0.035)), material);
+    beam.scale.x = Math.max(0.2, length);
+    beam.rotation.y = -Math.atan2(dz, dx);
+    group.add(beam);
+    group.position.set((from.x + to.x) / 2, 0.64, (from.z + to.z) / 2);
+    return group;
+  }
+
+  return null;
+}
 
 function createThreeView(canvas: HTMLCanvasElement): ThreeView {
   const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
@@ -74,6 +137,8 @@ function renderGame(view: ThreeView, state: GameState) {
     .forEach((hero) => view.units.add(createHeroMesh(hero, state, state.heroes.indexOf(hero))));
 
   for (const p of state.particles) {
+    const effect = createSkillEffect(p, state);
+    if (effect) view.effects.add(effect);
     const sprite = createTextSprite(p.text, p.color, clamp(p.life, 0, 1));
     sprite.position.copy(toWorld(p, state));
     sprite.position.y = 1.6 + (1 - p.life) * 0.7;

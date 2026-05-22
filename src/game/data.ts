@@ -15,7 +15,7 @@ export const formations: Formation[] = [
   }
 ];
 
-export const skillKeys: SkillKey[] = ["e", "r", "t", "y"];
+export const skillKeys: SkillKey[] = ["r", "f", "t", "g"];
 
 export const elementLabels: Record<ElementId, string> = {
   neutral: "無",
@@ -105,10 +105,10 @@ export const shops: Record<ShopId, ShopDefinition> = {
 export const shopOrder: ShopId[] = ["weapon", "armor", "item", "inn"];
 
 const emptySkillCooldowns = (): Record<SkillKey, number> => ({
-  e: 0,
   r: 0,
+  f: 0,
   t: 0,
-  y: 0
+  g: 0
 });
 
 const createEquipment = (
@@ -185,10 +185,10 @@ export const initialHeroes: Hero[] = [
     attack: 24,
     cooldown: 0,
     skills: [
-      { key: "e", id: "blade-lunge", name: "グランディア", cost: 30, cooldown: 4.2 },
-      { key: "r", id: "blade-cleave", name: "クロスエッジ", cost: 34, cooldown: 5.2 },
+      { key: "r", id: "blade-lunge", name: "グランディア", cost: 30, cooldown: 4.2 },
+      { key: "f", id: "blade-cleave", name: "クロスエッジ", cost: 34, cooldown: 5.2 },
       { key: "t", id: "blade-guard", name: "ロイヤルガード", cost: 24, cooldown: 7 },
-      { key: "y", id: "blade-rally", name: "家門号令", cost: 42, cooldown: 9 }
+      { key: "g", id: "blade-rally", name: "家門号令", cost: 42, cooldown: 9 }
     ],
     skillCooldowns: emptySkillCooldowns(),
     equipment: createEquipment(
@@ -234,10 +234,10 @@ export const initialHeroes: Hero[] = [
     attack: 21,
     cooldown: 0,
     skills: [
-      { key: "e", id: "rifle-shot", name: "集中射撃", cost: 28, cooldown: 3.8 },
-      { key: "r", id: "rifle-grenade", name: "榴弾射撃", cost: 36, cooldown: 5.8 },
+      { key: "r", id: "rifle-shot", name: "集中射撃", cost: 28, cooldown: 3.8 },
+      { key: "f", id: "rifle-grenade", name: "榴弾射撃", cost: 36, cooldown: 5.8 },
       { key: "t", id: "rifle-smoke", name: "煙幕展開", cost: 28, cooldown: 7 },
-      { key: "y", id: "rifle-volley", name: "一斉掃射", cost: 48, cooldown: 10 }
+      { key: "g", id: "rifle-volley", name: "一斉掃射", cost: 48, cooldown: 10 }
     ],
     skillCooldowns: emptySkillCooldowns(),
     equipment: createEquipment(
@@ -283,10 +283,10 @@ export const initialHeroes: Hero[] = [
     attack: 17,
     cooldown: 0,
     skills: [
-      { key: "e", id: "staff-heal", name: "レメディ", cost: 32, cooldown: 4.2 },
-      { key: "r", id: "staff-flare", name: "フレアリング", cost: 38, cooldown: 5.6 },
+      { key: "r", id: "staff-heal", name: "レメディ", cost: 32, cooldown: 4.2 },
+      { key: "f", id: "staff-flare", name: "フレアリング", cost: 38, cooldown: 5.6 },
       { key: "t", id: "staff-mana", name: "マナタイド", cost: 26, cooldown: 7.2 },
-      { key: "y", id: "staff-starfall", name: "星落とし", cost: 54, cooldown: 11 }
+      { key: "g", id: "staff-starfall", name: "星落とし", cost: 54, cooldown: 11 }
     ],
     skillCooldowns: emptySkillCooldowns(),
     equipment: createEquipment(
@@ -332,10 +332,10 @@ export const initialHeroes: Hero[] = [
     attack: 12,
     cooldown: 0,
     skills: [
-      { key: "e", id: "scout-firstaid", name: "ファーストエイド", cost: 30, cooldown: 3.8 },
-      { key: "r", id: "scout-regeneration", name: "リジェネレート", cost: 34, cooldown: 6 },
+      { key: "r", id: "scout-firstaid", name: "ファーストエイド", cost: 30, cooldown: 3.8 },
+      { key: "f", id: "scout-regeneration", name: "リジェネレート", cost: 34, cooldown: 6 },
       { key: "t", id: "scout-haste", name: "ヘイストオーダー", cost: 32, cooldown: 7.5 },
-      { key: "y", id: "scout-sanctuary", name: "サンクチュアリ", cost: 58, cooldown: 12 }
+      { key: "g", id: "scout-sanctuary", name: "サンクチュアリ", cost: 58, cooldown: 12 }
     ],
     skillCooldowns: emptySkillCooldowns(),
     equipment: createEquipment(
@@ -457,10 +457,10 @@ export function createReserveHeroes(): Hero[] {
     x: 0,
     y: 0,
     skills: [
-      { key: "e", id: "blade-lunge", name: "セレスティアスラスト", cost: 30, cooldown: 4 },
-      { key: "r", id: "blade-cleave", name: "スタークロス", cost: 36, cooldown: 5.4 },
+      { key: "r", id: "blade-lunge", name: "セレスティアスラスト", cost: 30, cooldown: 4 },
+      { key: "f", id: "blade-cleave", name: "スタークロス", cost: 36, cooldown: 5.4 },
       { key: "t", id: "blade-guard", name: "ルミナスガード", cost: 26, cooldown: 7 },
-      { key: "y", id: "blade-rally", name: "ソードセイント", cost: 44, cooldown: 9.2 }
+      { key: "g", id: "blade-rally", name: "ソードセイント", cost: 44, cooldown: 9.2 }
     ],
     skillCooldowns: emptySkillCooldowns(),
     equipment: createEquipment(

@@ -1,5 +1,5 @@
 import { areaOrder, areas, cloneEquipment, consumableCatalog, createReserveHeroes, elementAdvantage, elementColors, elementLabels, equipmentCatalog, formations, initialHeroes, shopOrder, shops, skillKeys } from "./data";
-import type { AreaId, ConsumableId, ElementId, Enemy, Equipment, EquipmentBonus, EquipmentSlot, GameState, Hero, HudState, Point, ShopId, SkillKey, WarpPoint } from "./types";
+import type { AreaId, ConsumableId, ElementId, Enemy, Equipment, EquipmentBonus, EquipmentSlot, GameState, Hero, HudState, Particle, Point, ShopId, SkillKey, WarpPoint } from "./types";
 
 const HERO_DETECTION_RANGE = 360;
 const HERO_DETECTION_RANGE_CAP = 440;
@@ -433,6 +433,56 @@ function damageWithAccuracy(state: GameState, target: Enemy | Hero, accuracy: nu
   return true;
 }
 
+function skillPoseFor(skillId: string) {
+  if (skillId.includes("rifle")) return "shoot" as const;
+  if (skillId.includes("staff") || skillId.includes("scout")) return "cast" as const;
+  if (skillId.includes("guard")) return "guard" as const;
+  if (skillId.includes("rally")) return "rally" as const;
+  return "slash" as const;
+}
+
+function startSkillAnimation(hero: Hero, skillId: string) {
+  hero.attacking = true;
+  hero.attackTime = 0;
+  hero.skillPose = skillPoseFor(skillId);
+  hero.skillTime = hero.skillPose === "cast" || hero.skillPose === "rally" ? 0.78 : 0.58;
+}
+
+function addSkillEffect(state: GameState, effect: Particle) {
+  state.particles.push({
+    maxLife: effect.life,
+    ...effect
+  });
+}
+
+function emitSkillEffect(state: GameState, skillId: string, hero: Hero, target: Point | null) {
+  const center = target ?? hero;
+  const angle = target ? facingAngle(hero, target) : hero.facing;
+  const color =
+    skillId.includes("rifle") ? "#d9ecff" :
+      skillId.includes("staff") ? "#d7b5ff" :
+        skillId.includes("scout") ? "#b7f0cf" :
+          "#fff0a6";
+
+  if (skillId === "blade-lunge") addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "thrust", color, life: 0.45, kind: "beam", angle });
+  else if (skillId === "blade-cleave") addSkillEffect(state, { x: center.x, y: center.y, text: "slash", color, life: 0.5, kind: "slash", radius: 118, angle });
+  else if (skillId === "blade-guard") addSkillEffect(state, { x: hero.x, y: hero.y, text: "guard", color, life: 0.75, kind: "aura", radius: 92 });
+  else if (skillId === "blade-rally") addSkillEffect(state, { x: hero.x, y: hero.y, text: "rally", color, life: 0.8, kind: "ring", radius: 168 });
+  else if (skillId === "rifle-shot") addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "shot", color, life: 0.32, kind: "beam", angle });
+  else if (skillId === "rifle-grenade") addSkillEffect(state, { x: center.x, y: center.y, text: "blast", color: "#ffc27a", life: 0.62, kind: "burst", radius: 132 });
+  else if (skillId === "rifle-smoke") addSkillEffect(state, { x: hero.x, y: hero.y, text: "smoke", color: "#c7d5e8", life: 0.9, kind: "aura", radius: 190 });
+  else if (skillId === "rifle-volley") addSkillEffect(state, { x: hero.x + 120, y: hero.y, x2: hero.x + 430, y2: hero.y, text: "volley", color, life: 0.6, kind: "beam", angle: hero.facing });
+  else if (skillId === "staff-heal") addSkillEffect(state, { x: hero.x, y: hero.y, text: "heal", color: "#aef2d0", life: 0.85, kind: "ring", radius: 180 });
+  else if (skillId === "staff-flare") addSkillEffect(state, { x: center.x, y: center.y, text: "flare", color: "#ffb16f", life: 0.72, kind: "burst", radius: 145 });
+  else if (skillId === "staff-mana") addSkillEffect(state, { x: hero.x, y: hero.y, text: "mana", color: "#86d8e5", life: 0.85, kind: "aura", radius: 170 });
+  else if (skillId === "staff-starfall") addSkillEffect(state, { x: hero.x, y: hero.y, text: "stars", color, life: 0.85, kind: "ring", radius: 230 });
+  else if (skillId === "scout-firstaid") addSkillEffect(state, { x: center.x, y: center.y, text: "aid", color, life: 0.72, kind: "aura", radius: 80 });
+  else if (skillId === "scout-regeneration") addSkillEffect(state, { x: hero.x, y: hero.y, text: "regen", color, life: 0.9, kind: "ring", radius: 160 });
+  else if (skillId === "scout-haste") addSkillEffect(state, { x: hero.x, y: hero.y, text: "haste", color: "#e6ffd2", life: 0.72, kind: "ring", radius: 150 });
+  else if (skillId === "scout-sanctuary") addSkillEffect(state, { x: hero.x, y: hero.y, text: "sanct", color: "#fff0a6", life: 1, kind: "aura", radius: 210 });
+  addSkillEffect(state, { x: hero.x, y: hero.y - 40, text: skillId.split("-").at(-1) ?? "skill", color, life: 0.55, kind: "text" });
+}
+
 function randomSpawnPoint(state: GameState) {
   let point = { x: 180, y: 160 };
   for (let i = 0; i < 12; i += 1) {
@@ -668,6 +718,8 @@ function useSkill(state: GameState, key: SkillKey) {
   const magicPower = stats.magicAttack;
   const healPower = Math.floor(magicPower * 0.8);
   if (target) faceToward(hero, target);
+  startSkillAnimation(hero, skill.id);
+  emitSkillEffect(state, skill.id, hero, target);
 
   if (skill.id === "blade-lunge" && target) {
     moveToward(hero, target, 1, 3.2);
@@ -763,6 +815,8 @@ function updateGame(state: GameState, dt: number) {
   state.orderPulse = Math.max(0, state.orderPulse - dt);
   for (const hero of state.heroes) {
     hero.moving = false;
+    hero.skillTime = Math.max(0, (hero.skillTime ?? 0) - dt);
+    if ((hero.skillTime ?? 0) <= 0) hero.skillPose = undefined;
     if (hero.attacking) {
       hero.attackTime += dt;
       if (hero.attackTime > 0.55) {

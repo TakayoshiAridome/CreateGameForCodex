@@ -284,6 +284,7 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   group.add(model);
   const selected = state.selected === index;
   const run = runCycle(hero);
+  const skillPulse = hero.skillPose ? Math.sin((1 - clamp(hero.skillTime ?? 0, 0, 0.8) / 0.8) * Math.PI) : 0;
   model.position.y = run.bob;
   model.rotation.z = hero.moving ? Math.sin(run.phase * 2) * 0.035 : 0;
 
@@ -335,6 +336,25 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
     arm.position.set(side * 0.23, 0.55, 0.02);
     arm.rotation.x = side * run.stride;
     arm.rotation.z = side * 0.18;
+    if (hero.skillPose === "slash") {
+      arm.rotation.x = -0.9 * skillPulse;
+      arm.rotation.z = side * (0.18 + 0.5 * skillPulse);
+    } else if (hero.skillPose === "shoot") {
+      arm.rotation.x = -0.42 * skillPulse;
+      arm.rotation.z = side * (0.06 - 0.12 * skillPulse);
+      arm.position.z += 0.08 * skillPulse;
+    } else if (hero.skillPose === "cast") {
+      arm.rotation.x = -0.72 * skillPulse;
+      arm.rotation.z = side * (0.42 + 0.26 * skillPulse);
+      arm.position.y += 0.12 * skillPulse;
+    } else if (hero.skillPose === "guard") {
+      arm.rotation.x = -0.25 * skillPulse;
+      arm.rotation.z = side * (0.62 * skillPulse);
+    } else if (hero.skillPose === "rally") {
+      arm.rotation.x = -1.05 * skillPulse;
+      arm.rotation.z = side * (0.28 + 0.36 * skillPulse);
+      arm.position.y += 0.18 * skillPulse;
+    }
     model.add(arm);
 
     const leg = new THREE.Mesh(
@@ -361,7 +381,30 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   );
   weapon.rotation.z = hero.weapon === "staff" ? 0.18 : -0.75;
   weapon.position.set(0.32, 0.65, 0.03);
+  if (hero.skillPose === "slash") {
+    weapon.rotation.z -= 0.75 * skillPulse;
+    weapon.position.y += 0.12 * skillPulse;
+  } else if (hero.skillPose === "shoot") {
+    weapon.rotation.z = -Math.PI / 2;
+    weapon.position.set(0.34 + 0.08 * skillPulse, 0.72, 0.13);
+  } else if (hero.skillPose === "cast" || hero.skillPose === "rally") {
+    weapon.position.y += 0.22 * skillPulse;
+    weapon.rotation.z += 0.28 * skillPulse;
+  } else if (hero.skillPose === "guard") {
+    weapon.rotation.z = -0.18;
+    weapon.position.set(0.2, 0.72, 0.14);
+  }
   model.add(weapon);
+
+  if (hero.skillPose) {
+    const glow = new THREE.Mesh(
+      sharedGeometry("hero-skill-glow-torus", () => new THREE.TorusGeometry(0.34, 0.018, 8, 36)),
+      sharedBasicMaterial(`hero-skill-glow-${hero.trim}`, { color: hero.trim, transparent: true, opacity: 0.56 })
+    );
+    glow.rotation.x = Math.PI / 2;
+    glow.position.y = 0.08 + skillPulse * 0.08;
+    group.add(glow);
+  }
 
   addHealthBar(group, hero.hp / heroStats(hero).maxHp, 0.92, selected ? 0xffe0a0 : 0xffffff);
   return group;

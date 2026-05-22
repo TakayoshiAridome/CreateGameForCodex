@@ -1,7 +1,9 @@
 
 export type Point = { x: number; y: number };
 export type Weapon = "sword" | "rifle" | "staff" | "scout";
-export type SkillKey = "e" | "r" | "t" | "y";
+export type SkillKey = "r" | "f" | "t" | "g";
+export type SkillPose = "slash" | "shoot" | "cast" | "guard" | "rally";
+export type SkillEffectKind = "text" | "ring" | "burst" | "slash" | "beam" | "aura";
 export type AreaId = "town" | "field" | "dungeon";
 export type ShopId = "weapon" | "armor" | "item" | "inn";
 export type ConsumableId = "potion";
@@ -64,6 +66,8 @@ export type Hero = Point & {
   runTime: number;
   attacking: boolean;
   attackTime: number;
+  skillPose?: SkillPose;
+  skillTime?: number;
   str: number;
   vit: number;
   agi: number;
@@ -98,6 +102,12 @@ export type Particle = Point & {
   text: string;
   color: string;
   life: number;
+  maxLife?: number;
+  kind?: SkillEffectKind;
+  radius?: number;
+  angle?: number;
+  x2?: number;
+  y2?: number;
 };
 
 export type Formation = {
