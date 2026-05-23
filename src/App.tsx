@@ -489,7 +489,7 @@ function App() {
         <div className="crest">A</div>
         <h2>アルカディア開拓団</h2>
         <p className="status">{hud.status}</p>
-        {hud.area === "town" && (
+        {hud.area === "aureleaf" && (
           <div className="town-shops">
             {shopOrder.map((shop) => {
               const service = shops[shop];
@@ -511,7 +511,7 @@ function App() {
             })}
           </div>
         )}
-        {hud.area === "town" && (
+        {hud.area === "aureleaf" && (
           <div className="shop-stock">
             <div className="equipment-head">
               <strong>販売装備</strong>
@@ -527,7 +527,7 @@ function App() {
             ))}
           </div>
         )}
-        {hud.area === "town" && (
+        {hud.area === "aureleaf" && (
           <div className="shop-stock">
             <div className="equipment-head">
               <strong>道具屋の商品</strong>

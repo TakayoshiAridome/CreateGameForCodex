@@ -11,8 +11,8 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const pad = new THREE.Mesh(
     sharedGeometry("warp-pad-cylinder", () => new THREE.CylinderGeometry(0.48, 0.58, 0.045, 36)),
     sharedStandardMaterial(`warp-pad-${state.area}-${warpPoint.target}`, {
-      color: isDungeonGate ? 0xb889ff : state.area === "town" ? 0x71d8ff : 0xffd071,
-      emissive: isDungeonGate ? 0x3d1e68 : state.area === "town" ? 0x1c5f82 : 0x6d4214,
+      color: isDungeonGate ? 0xb889ff : state.area === "aureleaf" ? 0x71d8ff : 0xffd071,
+      emissive: isDungeonGate ? 0x3d1e68 : state.area === "aureleaf" ? 0x1c5f82 : 0x6d4214,
       emissiveIntensity: 0.28,
       roughness: 0.38,
       metalness: 0.1
@@ -24,7 +24,7 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const ring = new THREE.Mesh(
     sharedGeometry("warp-ring-torus", () => new THREE.TorusGeometry(0.54, 0.025, 8, 42)),
     sharedBasicMaterial(`warp-ring-${state.area}-${warpPoint.target}`, {
-      color: isDungeonGate ? 0xd8bdff : state.area === "town" ? 0xb9f4ff : 0xffe4a3
+      color: isDungeonGate ? 0xd8bdff : state.area === "aureleaf" ? 0xb9f4ff : 0xffe4a3
     })
   );
   ring.rotation.x = Math.PI / 2;
@@ -34,7 +34,7 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const arch = new THREE.Mesh(
     sharedGeometry("warp-arch-torus", () => new THREE.TorusGeometry(0.38, 0.025, 10, 34, Math.PI)),
     sharedBasicMaterial(`warp-arch-${state.area}-${warpPoint.target}`, {
-      color: isDungeonGate ? 0xc89cff : state.area === "town" ? 0x9eeaff : 0xffcf6f
+      color: isDungeonGate ? 0xc89cff : state.area === "aureleaf" ? 0x9eeaff : 0xffcf6f
     })
   );
   arch.rotation.z = Math.PI;
@@ -44,7 +44,7 @@ function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const core = new THREE.Mesh(
     sharedGeometry("warp-core-plane", () => new THREE.PlaneGeometry(0.5, 0.78)),
     sharedBasicMaterial(`warp-core-${state.area}-${warpPoint.target}`, {
-      color: isDungeonGate ? 0x9c63ff : state.area === "town" ? 0x4fbfff : 0xffb24a,
+      color: isDungeonGate ? 0x9c63ff : state.area === "aureleaf" ? 0x4fbfff : 0xffb24a,
       transparent: true,
       opacity: 0.42,
       side: THREE.DoubleSide
@@ -203,9 +203,9 @@ function rebuildField(view: ThreeView, state: GameState) {
   const worldDepth = playableBottom(state);
   const width = worldWidth / WORLD_SCALE;
   const depth = worldDepth / WORLD_SCALE;
-  const groundColor = state.area === "town" ? 0x6d6f59 : state.area === "dungeon" ? 0x393446 : 0x66724a;
-  const gridColor = state.area === "town" ? 0xd8c799 : state.area === "dungeon" ? 0x886ab0 : 0xb7a56f;
-  const gridFloorColor = state.area === "town" ? 0x60664b : state.area === "dungeon" ? 0x272233 : 0x4f5c3d;
+  const groundColor = state.area === "aureleaf" ? 0x6d6f59 : state.area === "dungeon" ? 0x393446 : 0x66724a;
+  const gridColor = state.area === "aureleaf" ? 0xd8c799 : state.area === "dungeon" ? 0x886ab0 : 0xb7a56f;
+  const gridFloorColor = state.area === "aureleaf" ? 0x60664b : state.area === "dungeon" ? 0x272233 : 0x4f5c3d;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
     new THREE.MeshStandardMaterial({ color: groundColor, roughness: 0.92 })
@@ -214,11 +214,11 @@ function rebuildField(view: ThreeView, state: GameState) {
   ground.receiveShadow = true;
   view.field.add(ground);
 
-  const grid = new THREE.GridHelper(Math.max(width, depth), state.area === "field" ? 42 : 18, gridColor, gridFloorColor);
+  const grid = new THREE.GridHelper(Math.max(width, depth), state.area === "spiritTreeForest01" ? 42 : 18, gridColor, gridFloorColor);
   grid.position.y = 0.012;
   view.field.add(grid);
 
-  if (state.area === "town") {
+  if (state.area === "aureleaf") {
     addExpandedTownTerrain(view.field, state);
     const shopBuildings = [
       { name: "武器屋", x: -3.3, color: 0x8b5a4c, roof: 0x7d3344 },
@@ -273,7 +273,7 @@ function rebuildField(view: ThreeView, state: GameState) {
     return;
   }
 
-  if (state.area === "field") {
+  if (state.area === "spiritTreeForest01") {
     addExpandedFieldTerrain(view.field, state);
   }
 

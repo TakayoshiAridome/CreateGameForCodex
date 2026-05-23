@@ -31,7 +31,7 @@ function createGameState(): GameState {
     view: { w: 1280, h: 720 },
     selected: 0,
     paused: false,
-    area: "field",
+    area: "spiritTreeForest01",
     formation: 0,
     score: 0,
     gold: 220,
@@ -168,13 +168,13 @@ function recoverAtTown(state: GameState, penalty = false) {
     }
   }
 
-  state.area = "town";
+  state.area = "aureleaf";
   state.paused = false;
   state.enemies = [];
   state.particles = [];
   state.targetPoint = null;
   state.spawnTimer = 1.1;
-  state.bossTimer = areas.field.bossInterval;
+  state.bossTimer = areas.spiritTreeForest01.bossInterval;
   for (const [heroIndex, hero] of state.heroes.entries()) {
     const stats = heroStats(hero);
     setHeroHp(state, hero, heroIndex, Math.max(1, Math.floor(stats.maxHp * 0.55)));
@@ -185,10 +185,10 @@ function recoverAtTown(state: GameState, penalty = false) {
     }
     moveHeroToFormationSlot(state, heroIndex);
   }
-  addLog(state, penalty ? "Party wiped out. Returned to town." : "Recovered in town.");
+  addLog(state, penalty ? "Party wiped out. Returned to Aureleaf." : "Recovered in Aureleaf.");
   state.status = penalty
-    ? "Party wiped out. EXP and Gold decreased by 10%, then returned to town."
-    : "The party recovered in town.";
+    ? "Party wiped out. EXP and Gold decreased by 10%, then returned to Aureleaf."
+    : "The party recovered in Aureleaf.";
 }
 
 function distance(a: Point, b: Point) {
@@ -200,16 +200,16 @@ function combatBottom(state: GameState) {
 }
 
 function playableWidth(state: GameState) {
-  if (state.area === "town") return Math.max(1900, state.view.w * 2.05);
+  if (state.area === "aureleaf") return Math.max(1900, state.view.w * 2.05);
   if (state.area === "dungeon") return Math.max(2300, state.view.w * 2.45);
-  if (state.area === "field") return Math.max(2400, state.view.w * 2.65);
+  if (state.area === "spiritTreeForest01") return Math.max(2400, state.view.w * 2.65);
   return state.view.w;
 }
 
 function playableBottom(state: GameState) {
-  if (state.area === "town") return Math.max(1120, combatBottom(state) * 1.9);
+  if (state.area === "aureleaf") return Math.max(1120, combatBottom(state) * 1.9);
   if (state.area === "dungeon") return Math.max(1420, combatBottom(state) * 2.35);
-  if (state.area === "field") return Math.max(1280, combatBottom(state) * 2.35);
+  if (state.area === "spiritTreeForest01") return Math.max(1280, combatBottom(state) * 2.35);
   return combatBottom(state);
 }
 
@@ -222,20 +222,20 @@ function currentArea(state: GameState) {
 }
 
 function warpPointForArea(state: GameState): WarpPoint | null {
-  if (state.area === "town") return { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "field", label: "フィールドへ" };
-  if (state.area === "field") return { x: 210, y: playableBottom(state) - 190, target: "town", label: "町へ" };
+  if (state.area === "aureleaf") return { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" };
+  if (state.area === "spiritTreeForest01") return { x: 210, y: playableBottom(state) - 190, target: "aureleaf", label: "アウレリーフへ" };
   return null;
 }
 
 function warpPointsForArea(state: GameState): WarpPoint[] {
   const primary = warpPointForArea(state);
-  if (state.area === "field") {
+  if (state.area === "spiritTreeForest01") {
     return [
       ...(primary ? [primary] : []),
       { x: playableWidth(state) - 240, y: 210, target: "dungeon", label: "ダンジョンへ" }
     ];
   }
-  if (state.area === "dungeon") return [{ x: 210, y: playableBottom(state) - 190, target: "field", label: "フィールドへ" }];
+  if (state.area === "dungeon") return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" }];
   return primary ? [primary] : [];
 }
 
@@ -292,10 +292,10 @@ function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
   ensureFormationIndex(state);
   const entryY = playableBottom(state) - 190;
   const entryAnchor =
-    state.area === "town"
+    state.area === "aureleaf"
       ? { x: playableWidth(state) - 360, y: entryY }
-      : state.area === "field"
-        ? { x: fromArea === "town" ? 335 : playableWidth(state) - 370, y: fromArea === "town" ? entryY : 260 }
+      : state.area === "spiritTreeForest01"
+        ? { x: fromArea === "aureleaf" ? 335 : playableWidth(state) - 370, y: fromArea === "aureleaf" ? entryY : 260 }
         : state.area === "dungeon"
           ? { x: 350, y: entryY }
         : currentFormationAnchor(state);
@@ -317,7 +317,7 @@ function changeAreaState(state: GameState, area: AreaId) {
   state.bossTimer = areas[area].bossInterval;
   state.status = `${areas[area].name}へ移動しました。${areas[area].description}`;
   addLog(state, `${areas[area].name}へ移動。`);
-  if (area === "town") {
+  if (area === "aureleaf") {
     for (const hero of state.heroes) {
       const stats = heroStats(hero);
       setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 34);
@@ -542,7 +542,7 @@ function randomSpawnPoint(state: GameState) {
 }
 
 function spawnEnemy(state: GameState, boss = false) {
-  if (state.area === "town") return;
+  if (state.area === "aureleaf") return;
   const point = randomSpawnPoint(state);
   const area = currentArea(state);
   const elite = !boss && Math.random() < 0.18 + Math.min(0.18, state.score / 5000);
@@ -909,7 +909,7 @@ function updateGame(state: GameState, dt: number) {
     clearArrivedMoveTarget(state);
   }
 
-  if (state.area === "town") {
+  if (state.area === "aureleaf") {
     state.enemies = [];
     for (const [heroIndex, hero] of state.heroes.entries()) {
       const stats = heroStats(hero);
@@ -1062,8 +1062,8 @@ function spendGold(state: GameState, cost: number, label: string) {
 }
 
 function buyEquipment(state: GameState, itemId: string) {
-  if (state.area !== "town") {
-    state.status = "Equipment can be bought in town.";
+  if (state.area !== "aureleaf") {
+    state.status = "Equipment can be bought in Aureleaf.";
     return;
   }
   const item = equipmentCatalog.find((candidate) => candidate.id === itemId);
@@ -1089,8 +1089,8 @@ function equipInventoryItem(state: GameState, index: number) {
 }
 
 function buyConsumable(state: GameState, itemId: ConsumableId) {
-  if (state.area !== "town") {
-    state.status = "Items can be bought in town.";
+  if (state.area !== "aureleaf") {
+    state.status = "Items can be bought in Aureleaf.";
     return;
   }
   const item = consumableCatalog.find((candidate) => candidate.id === itemId);
@@ -1130,7 +1130,7 @@ function useConsumable(state: GameState, itemId: ConsumableId) {
 }
 
 function useTownShop(state: GameState, shop: ShopId) {
-  if (state.area !== "town") {
+  if (state.area !== "aureleaf") {
     state.status = "町の施設は町で利用できます。";
     return;
   }
@@ -1244,14 +1244,14 @@ class GameEngine {
     this.state.bossTimer = areas[area].bossInterval;
     this.state.status = `${areas[area].name}へ移動しました。${areas[area].description}`;
     addLog(this.state, `${areas[area].name}へ移動。`);
-    if (area === "town") {
+    if (area === "aureleaf") {
       for (const hero of this.state.heroes) {
         const stats = heroStats(hero);
         setHeroHp(this.state, hero, this.state.heroes.indexOf(hero), hero.hp + 34);
         hero.mp = clamp(hero.mp + 28, 0, stats.maxMp);
       }
     }
-    if ((fromArea === "town" && area === "field") || (fromArea === "field" && area === "town")) {
+    if ((fromArea === "aureleaf" && area === "spiritTreeForest01") || (fromArea === "spiritTreeForest01" && area === "aureleaf")) {
       movePartyToAreaEntry(this.state, fromArea);
     }
   }

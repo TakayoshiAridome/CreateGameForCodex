@@ -47,17 +47,17 @@ export const elementAdvantage: Partial<Record<ElementId, ElementId>> = {
 };
 
 export const areas: Record<AreaId, AreaDefinition> = {
-  town: {
-    id: "town",
-    name: "町",
+  aureleaf: {
+    id: "aureleaf",
+    name: "アウレリーフ",
     description: "広い街区を持つ補給と回復の拠点。敵は出現しません。",
     spawnRate: 0,
     bossInterval: Infinity,
     enemyScale: 0
   },
-  field: {
-    id: "field",
-    name: "フィールド",
+  spiritTreeForest01: {
+    id: "spiritTreeForest01",
+    name: "精霊樹の森01",
     description: "広大な探索地帯。起伏のある地形で敵がランダムに出現します。",
     spawnRate: 1,
     bossInterval: 28,
@@ -73,7 +73,7 @@ export const areas: Record<AreaId, AreaDefinition> = {
   }
 };
 
-export const areaOrder: AreaId[] = ["town", "field", "dungeon"];
+export const areaOrder: AreaId[] = ["aureleaf", "spiritTreeForest01", "dungeon"];
 
 export const shops: Record<ShopId, ShopDefinition> = {
   weapon: {
