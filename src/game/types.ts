@@ -97,14 +97,21 @@ export type Hero = Point & {
 };
 
 export type Enemy = Point & {
-  type: "corsair" | "duelist" | "boss";
+  type: "corsair" | "duelist" | "wolf" | "boss";
   element: ElementId;
+  facing: number;
+  skill?: {
+    id: "bite";
+    name: string;
+  };
   hp: number;
   maxHp: number;
   speed: number;
   attack: number;
   cooldown: number;
   radius: number;
+  wanderTarget?: Point;
+  wanderTimer?: number;
 };
 
 export type Particle = Point & {

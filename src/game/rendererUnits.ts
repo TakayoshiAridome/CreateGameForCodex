@@ -791,22 +791,52 @@ function createLuceriaMesh(hero: Hero, state: GameState, index: number) {
 function createEnemyMesh(enemy: Enemy, state: GameState) {
   const group = new THREE.Group();
   group.position.copy(toWorld(enemy, state));
+  const model = new THREE.Group();
+  model.rotation.y = enemy.facing;
+  group.add(model);
   const isBoss = enemy.type === "boss";
+  const isWolf = enemy.type === "wolf";
   const radius = isBoss ? 0.38 : enemy.type === "duelist" ? 0.25 : 0.2;
   const elementColor = new THREE.Color(elementColors[enemy.element]).getHex();
+  const bodyGeometry = isBoss
+    ? sharedGeometry(`enemy-boss-${radius}`, () => new THREE.DodecahedronGeometry(radius, 0))
+    : isWolf
+      ? sharedGeometry("enemy-wolf-body", () => new THREE.BoxGeometry(0.26, 0.24, 0.5))
+      : sharedGeometry(`enemy-${enemy.type}-${radius}`, () => new THREE.ConeGeometry(radius, 0.56, 5));
   const body = new THREE.Mesh(
-    isBoss
-      ? sharedGeometry(`enemy-boss-${radius}`, () => new THREE.DodecahedronGeometry(radius, 0))
-      : sharedGeometry(`enemy-${enemy.type}-${radius}`, () => new THREE.ConeGeometry(radius, isBoss ? 0.9 : 0.56, 5)),
+    bodyGeometry,
     sharedStandardMaterial(`enemy-${enemy.type}-${elementColor}`, {
       color: elementColor,
       roughness: 0.6,
       metalness: isBoss ? 0.18 : 0.04
     })
   );
-  body.position.y = isBoss ? 0.56 : 0.36;
+  body.position.y = isBoss ? 0.56 : isWolf ? 0.28 : 0.36;
   body.castShadow = true;
-  group.add(body);
+  model.add(body);
+
+  if (isWolf) {
+    const head = new THREE.Mesh(
+      sharedGeometry("enemy-wolf-head", () => new THREE.ConeGeometry(0.18, 0.28, 4)),
+      sharedStandardMaterial(`enemy-wolf-head-${elementColor}`, { color: elementColor, roughness: 0.66, metalness: 0.02 })
+    );
+    head.position.set(0, 0.34, 0.32);
+    head.rotation.x = Math.PI / 2;
+    head.castShadow = true;
+    model.add(head);
+
+    for (const x of [-0.09, 0.09]) {
+      for (const z of [-0.18, 0.18]) {
+        const leg = new THREE.Mesh(
+          sharedGeometry("enemy-wolf-leg", () => new THREE.BoxGeometry(0.05, 0.22, 0.05)),
+          sharedStandardMaterial(`enemy-wolf-leg-${elementColor}`, { color: elementColor, roughness: 0.7 })
+        );
+        leg.position.set(x, 0.13, z);
+        leg.castShadow = true;
+        model.add(leg);
+      }
+    }
+  }
 
   if (isBoss) {
     const crown = new THREE.Mesh(
@@ -815,7 +845,7 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
     );
     crown.position.y = 1.08;
     crown.rotation.x = Math.PI / 2;
-    group.add(crown);
+    model.add(crown);
   }
 
   const elementRing = new THREE.Mesh(

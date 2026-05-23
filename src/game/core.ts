@@ -14,6 +14,7 @@ const MIN_LUCERIA_ATTACK_MOTION_DURATION = 0.46;
 const MOVE_TARGET_ARRIVAL_DISTANCE = 18;
 const HERO_MOVEMENT_SPEED_MULTIPLIER = 1.35;
 const STANDARD_MOVEMENT_SPEED = 248;
+const WOLF_MOVEMENT_SPEED_MULTIPLIER = 1.05;
 
 function createGameState(): GameState {
   const heroes = structuredClone(initialHeroes);
@@ -545,29 +546,77 @@ function spawnEnemy(state: GameState, boss = false) {
   if (state.area === "aureleaf") return;
   const point = randomSpawnPoint(state);
   const area = currentArea(state);
-  const elite = !boss && Math.random() < 0.18 + Math.min(0.18, state.score / 5000);
+  const forestWolf = !boss && state.area === "spiritTreeForest01";
+  const elite = !boss && !forestWolf && Math.random() < 0.18 + Math.min(0.18, state.score / 5000);
   const pressure = (1 + Math.min(1.6, state.score / 2200)) * area.enemyScale;
   const enemyElements: ElementId[] = ["fire", "water", "wind", "earth", "dark"];
   state.enemies.push({
-    type: boss ? "boss" : elite ? "duelist" : "corsair",
-    element: boss ? (state.bossCount % 2 === 0 ? "dark" : "light") : enemyElements[Math.floor(Math.random() * enemyElements.length)],
+    type: boss ? "boss" : forestWolf ? "wolf" : elite ? "duelist" : "corsair",
+    element: boss ? (state.bossCount % 2 === 0 ? "dark" : "light") : forestWolf ? "earth" : enemyElements[Math.floor(Math.random() * enemyElements.length)],
+    skill: forestWolf ? { id: "bite", name: "かみつき" } : undefined,
     x: point.x,
     y: point.y,
-    hp: boss ? 420 + state.bossCount * 120 : elite ? 88 * pressure : 48 * pressure,
-    maxHp: boss ? 420 + state.bossCount * 120 : elite ? 88 * pressure : 48 * pressure,
-    speed: STANDARD_MOVEMENT_SPEED,
-    attack: boss ? 18 + state.bossCount * 4 : elite ? 11 : 7,
+    facing: Math.random() * Math.PI * 2,
+    hp: boss ? 420 + state.bossCount * 120 : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
+    maxHp: boss ? 420 + state.bossCount * 120 : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
+    speed: forestWolf ? STANDARD_MOVEMENT_SPEED * WOLF_MOVEMENT_SPEED_MULTIPLIER : STANDARD_MOVEMENT_SPEED,
+    attack: boss ? 18 + state.bossCount * 4 : forestWolf ? 8 : elite ? 11 : 7,
     cooldown: 0,
-    radius: boss ? 34 : elite ? 22 : 17
+    radius: boss ? 34 : forestWolf ? 19 : elite ? 22 : 17
   });
   state.particles.push({
     x: point.x,
     y: point.y - (boss ? 54 : 34),
-    text: boss ? "BOSS" : "pop",
-    color: boss ? "#ffcf6f" : "#d9ecff",
+    text: boss ? "BOSS" : forestWolf ? "ウルフ" : "pop",
+    color: boss ? "#ffcf6f" : forestWolf ? elementColors.earth : "#d9ecff",
     life: 1.1
   });
   if (boss) addLog(state, `Boss ${state.bossCount + 1} が出現。`);
+}
+
+function randomWolfWanderTarget(state: GameState, enemy: Enemy) {
+  const angle = Math.random() * Math.PI * 2;
+  const range = 120 + Math.random() * 240;
+  return {
+    x: clamp(enemy.x + Math.sin(angle) * range, 96, playableWidth(state) - 120),
+    y: clamp(enemy.y + Math.cos(angle) * range, 96, playableBottom(state) - 120)
+  };
+}
+
+function updateWolfRandomWalk(state: GameState, enemy: Enemy, dt: number) {
+  if (enemy.type !== "wolf") return;
+  enemy.wanderTimer = Math.max(0, (enemy.wanderTimer ?? 0) - dt);
+  if (!enemy.wanderTarget || enemy.wanderTimer <= 0 || distance(enemy, enemy.wanderTarget) < 12) {
+    enemy.wanderTarget = randomWolfWanderTarget(state, enemy);
+    enemy.wanderTimer = 1.4 + Math.random() * 2.4;
+  }
+  moveToward(enemy, enemy.wanderTarget, dt);
+}
+
+function performEnemyAttack(state: GameState, enemy: Enemy, target: Hero) {
+  faceToward(enemy, target);
+  const targetStats = heroStats(target);
+  const isBite = enemy.skill?.id === "bite";
+  if (isBite) {
+    addSkillEffect(state, {
+      x: target.x,
+      y: target.y,
+      text: enemy.skill?.name ?? "かみつき",
+      color: elementColors.earth,
+      life: 0.42,
+      kind: "slash",
+      radius: 74,
+      angle: enemy.facing
+    });
+  }
+  if (Math.random() < targetStats.evasion) {
+    state.particles.push({ x: target.x, y: target.y - 28, text: "evade", color: "#d9ecff", life: 0.45 });
+    return;
+  }
+  const skillPower = isBite ? 1.18 : 1;
+  const mitigatedDamage = Math.max(1, enemy.attack * skillPower + Math.random() * 4 - targetStats.physicalDefense * 0.35);
+  elementalDamage(state, target, mitigatedDamage, isBite ? elementColors.earth : "#ff8d75", enemy.element);
+  if (isBite) state.particles.push({ x: target.x, y: target.y - 42, text: "かみつき", color: elementColors.earth, life: 0.52 });
 }
 
 function currentFormationAnchor(state: GameState) {
@@ -972,18 +1021,16 @@ function updateGame(state: GameState, dt: number) {
   for (const enemy of state.enemies) {
     enemy.cooldown = Math.max(0, enemy.cooldown - dt);
     const target = nearestHeroForEnemy(enemy, aliveHeroes);
-    if (!target) continue;
+    if (!target) {
+      updateWolfRandomWalk(state, enemy, dt);
+      continue;
+    }
     if (distance(enemy, target) > enemy.radius + 28) {
+      enemy.wanderTarget = undefined;
       moveToward(enemy, target, dt);
     } else if (enemy.cooldown <= 0) {
-      const targetStats = heroStats(target);
-      if (Math.random() < targetStats.evasion) {
-        state.particles.push({ x: target.x, y: target.y - 28, text: "evade", color: "#d9ecff", life: 0.45 });
-      } else {
-        const mitigatedDamage = Math.max(1, enemy.attack + Math.random() * 4 - targetStats.physicalDefense * 0.35);
-        elementalDamage(state, target, mitigatedDamage, "#ff8d75", enemy.element);
-      }
-      enemy.cooldown = 1.28;
+      performEnemyAttack(state, enemy, target);
+      enemy.cooldown = enemy.skill?.id === "bite" ? 1.1 : 1.28;
     }
   }
 
