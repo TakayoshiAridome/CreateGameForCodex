@@ -9,6 +9,17 @@ const ELITE_DETECTION_BONUS = 60;
 const BOSS_DETECTION_BONUS = 150;
 
 function createGameState(): GameState {
+  const heroes = structuredClone(initialHeroes);
+  const reserveHeroes = createReserveHeroes();
+  const outgoingIndex = heroes.findIndex((hero) => hero.name === "アデリア" || hero.name === "アテリア");
+  const incomingIndex = reserveHeroes.findIndex((hero) => hero.name === "ルシェリア");
+  if (outgoingIndex >= 0 && incomingIndex >= 0) {
+    const outgoing = heroes[outgoingIndex];
+    const incoming = reserveHeroes[incomingIndex];
+    heroes[outgoingIndex] = { ...incoming, x: outgoing.x, y: outgoing.y, moving: false, attacking: false };
+    reserveHeroes[incomingIndex] = { ...outgoing, x: 0, y: 0, moving: false, attacking: false };
+  }
+
   return {
     view: { w: 1280, h: 720 },
     selected: 0,
@@ -31,8 +42,8 @@ function createGameState(): GameState {
       right: false
     },
     orderPulse: 0,
-    heroes: structuredClone(initialHeroes),
-    reserveHeroes: createReserveHeroes(),
+    heroes,
+    reserveHeroes,
     inventory: [],
     consumables: [],
     enemies: [],

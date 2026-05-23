@@ -24,10 +24,13 @@ const LUCERIA_RIGHT_HAND_BONE = "RightHand";
 const LUCERIA_CROSSBLADE_SCALE = 1.18;
 const LUCERIA_CROSSBLADE_ROTATION = new THREE.Euler(0.16, -0.08, -0.86);
 const LUCERIA_CROSSBLADE_RUN_ROTATION = new THREE.Euler(0.18, -0.12, -0.82);
+const LUCERIA_CROSSBLADE_RUN_EXTRA_ROTATION = new THREE.Euler(0, 0, Math.PI / 2);
 const LUCERIA_CROSSBLADE_GRIP_OFFSET = new THREE.Vector3(-0.37, 0.22, 0.03);
-const LUCERIA_CROSSBLADE_RUN_LOCAL_GRIP_OFFSET = LUCERIA_CROSSBLADE_GRIP_OFFSET.clone().multiplyScalar(100);
 const LUCERIA_CROSSBLADE_HAND_OFFSET = new THREE.Vector3();
 const LUCERIA_CROSSBLADE_GRIP_POINT = LUCERIA_CROSSBLADE_GRIP_OFFSET.clone().negate().applyQuaternion(new THREE.Quaternion().setFromEuler(LUCERIA_CROSSBLADE_ROTATION).invert());
+const LUCERIA_CROSSBLADE_RUN_LOCAL_GRIP_OFFSET = LUCERIA_CROSSBLADE_GRIP_POINT.clone().applyEuler(LUCERIA_CROSSBLADE_RUN_ROTATION).negate().multiplyScalar(100);
+const LUCERIA_CROSSBLADE_RUN_SIDE_GRIP_SHIFT = 22;
+const LUCERIA_CROSSBLADE_RUN_LEFT_GRIP_SHIFT = 42;
 const luceriaHandWorldPosition = new THREE.Vector3();
 const luceriaCrossbladeOffset = new THREE.Vector3();
 const luceriaHandWorldQuaternion = new THREE.Quaternion();
@@ -407,16 +410,23 @@ function attachLuceriaCrossblade(gltfModel: THREE.Group, weaponParent: THREE.Gro
   return true;
 }
 
-function attachLuceriaRunCrossblade(gltfModel: THREE.Group) {
+function attachLuceriaRunCrossblade(gltfModel: THREE.Group, horizontalMovement: number) {
   const rightHand = gltfModel.getObjectByName(LUCERIA_RIGHT_HAND_BONE);
   if (!rightHand) return false;
   const existing = rightHand.getObjectByName("LuceriaCrossblade");
   if (existing) rightHand.remove(existing);
+  const holder = new THREE.Group();
+  holder.name = "LuceriaCrossblade";
+  holder.rotation.copy(LUCERIA_CROSSBLADE_RUN_EXTRA_ROTATION);
   const crossblade = createLuceriaCrossbladeInstance() ?? createLuceriaVisibleFallbackBlade();
+  crossblade.name = "LuceriaCrossbladeMesh";
   crossblade.scale.multiplyScalar(100);
   crossblade.position.copy(LUCERIA_CROSSBLADE_RUN_LOCAL_GRIP_OFFSET);
+  if (horizontalMovement > 0) crossblade.position.x += LUCERIA_CROSSBLADE_RUN_SIDE_GRIP_SHIFT;
+  if (horizontalMovement < 0) crossblade.position.x += LUCERIA_CROSSBLADE_RUN_LEFT_GRIP_SHIFT;
   crossblade.rotation.copy(LUCERIA_CROSSBLADE_RUN_ROTATION);
-  rightHand.add(crossblade);
+  holder.add(crossblade);
+  rightHand.add(holder);
   return true;
 }
 
@@ -572,7 +582,7 @@ function createLuceriaMesh(hero: Hero, state: GameState, index: number) {
     model.add(gltfModel);
     if (hero.moving) {
       removeLuceriaCrossblade(model);
-      attachLuceriaRunCrossblade(gltfModel);
+      attachLuceriaRunCrossblade(gltfModel, Number(state.movement.right) - Number(state.movement.left));
     } else {
       attachLuceriaCrossblade(gltfModel, model, LUCERIA_CROSSBLADE_ROTATION, LUCERIA_CROSSBLADE_HAND_OFFSET, false);
     }
