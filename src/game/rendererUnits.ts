@@ -31,6 +31,9 @@ const LUCERIA_CROSSBLADE_GRIP_POINT = LUCERIA_CROSSBLADE_GRIP_OFFSET.clone().neg
 const LUCERIA_CROSSBLADE_RUN_LOCAL_GRIP_OFFSET = LUCERIA_CROSSBLADE_GRIP_POINT.clone().applyEuler(LUCERIA_CROSSBLADE_RUN_ROTATION).negate().multiplyScalar(100);
 const LUCERIA_CROSSBLADE_RUN_SIDE_GRIP_SHIFT = 22;
 const LUCERIA_CROSSBLADE_RUN_LEFT_GRIP_SHIFT = 42;
+const LUCERIA_ATTACK_FALLBACK_DURATION = 0.92;
+const BASIC_ATTACK_VISUAL_DURATION = 0.55;
+const MIN_BASIC_ATTACK_VISUAL_DURATION = 0.28;
 const luceriaHandWorldPosition = new THREE.Vector3();
 const luceriaCrossbladeOffset = new THREE.Vector3();
 const luceriaHandWorldQuaternion = new THREE.Quaternion();
@@ -69,6 +72,12 @@ function runCycle(hero: Hero) {
     stride: Math.sin(phase) * 0.34,
     bob: Math.abs(Math.sin(phase * 2)) * 0.045
   };
+}
+
+function basicAttackPulse(hero: Hero) {
+  if (!hero.attacking || hero.skillPose) return 0;
+  const duration = Math.max(MIN_BASIC_ATTACK_VISUAL_DURATION, BASIC_ATTACK_VISUAL_DURATION / heroStats(hero).attackSpeed);
+  return Math.sin(clamp(hero.attackTime / duration, 0, 1) * Math.PI);
 }
 
 function getLuceriaTexture() {
@@ -293,6 +302,14 @@ function loadLuceriaCrossbladeModel() {
   return luceriaCrossbladeModel;
 }
 
+function preloadLuceriaModels() {
+  loadLuceriaGltfModel();
+  loadLuceriaIdleGltfModel();
+  loadLuceriaRunGltfModel();
+  loadLuceriaAttackGltfModel();
+  loadLuceriaCrossbladeModel();
+}
+
 function createLuceriaAnimatedInstance(kind: LuceriaAnimationKind, source: THREE.Group | null, clips: THREE.AnimationClip[], time: number, verticalOffset = 0) {
   if (!source) return null;
   const clip = clips[0] ?? null;
@@ -323,7 +340,11 @@ function createLuceriaRunInstance(hero: Hero) {
 }
 
 function createLuceriaAttackInstance(hero: Hero) {
-  return createLuceriaAnimatedInstance("attack", loadLuceriaAttackGltfModel(), luceriaAttackGltfClips, hero.attackTime * 1.55);
+  return createLuceriaAnimatedInstance("attack", loadLuceriaAttackGltfModel(), luceriaAttackGltfClips, hero.attackTime * 1.55 * heroStats(hero).attackSpeed);
+}
+
+function luceriaAttackFallbackPulse(hero: Hero) {
+  return Math.sin(clamp(hero.attackTime / LUCERIA_ATTACK_FALLBACK_DURATION, 0, 1) * Math.PI);
 }
 
 function createLuceriaCrossbladeInstance() {
@@ -442,8 +463,10 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   const selected = state.selected === index;
   const run = runCycle(hero);
   const skillPulse = hero.skillPose ? Math.sin((1 - clamp(hero.skillTime ?? 0, 0, 0.8) / 0.8) * Math.PI) : 0;
+  const attackPulse = basicAttackPulse(hero);
   model.position.y = run.bob;
-  model.rotation.z = hero.moving ? Math.sin(run.phase * 2) * 0.035 : 0;
+  model.rotation.z = hero.moving ? Math.sin(run.phase * 2) * 0.035 : -0.045 * attackPulse;
+  model.position.z = 0.03 * attackPulse;
 
   const body = new THREE.Mesh(
     sharedGeometry("hero-body-capsule", () => new THREE.CapsuleGeometry(0.18, 0.46, 5, 10)),
@@ -511,6 +534,18 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
       arm.rotation.x = -1.05 * skillPulse;
       arm.rotation.z = side * (0.28 + 0.36 * skillPulse);
       arm.position.y += 0.18 * skillPulse;
+    } else if (attackPulse > 0 && hero.weapon === "rifle") {
+      arm.rotation.x = side > 0 ? -0.62 * attackPulse : -0.38 * attackPulse;
+      arm.rotation.z = side * (0.05 - 0.18 * attackPulse);
+      arm.position.z += 0.1 * attackPulse;
+    } else if (attackPulse > 0 && (hero.weapon === "staff" || hero.weapon === "scout")) {
+      arm.rotation.x = -0.66 * attackPulse;
+      arm.rotation.z = side * (0.36 + 0.2 * attackPulse);
+      arm.position.y += 0.08 * attackPulse;
+    } else if (attackPulse > 0) {
+      arm.rotation.x = side > 0 ? -1.08 * attackPulse : -0.26 * attackPulse;
+      arm.rotation.z = side > 0 ? -0.5 * attackPulse : -0.06 * attackPulse;
+      if (side > 0) arm.position.z += 0.1 * attackPulse;
     }
     model.add(arm);
 
@@ -550,16 +585,25 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   } else if (hero.skillPose === "guard") {
     weapon.rotation.z = -0.18;
     weapon.position.set(0.2, 0.72, 0.14);
+  } else if (attackPulse > 0 && hero.weapon === "rifle") {
+    weapon.rotation.z = -Math.PI / 2;
+    weapon.position.set(0.36 + 0.08 * attackPulse, 0.72, 0.14);
+  } else if (attackPulse > 0 && (hero.weapon === "staff" || hero.weapon === "scout")) {
+    weapon.rotation.z = 0.18 + 0.42 * attackPulse;
+    weapon.position.set(0.26, 0.68 + 0.16 * attackPulse, 0.08);
+  } else if (attackPulse > 0) {
+    weapon.rotation.z = -0.75 - 0.95 * attackPulse;
+    weapon.position.set(0.28 + 0.08 * attackPulse, 0.65 + 0.12 * attackPulse, 0.1);
   }
   model.add(weapon);
 
-  if (hero.skillPose) {
+  if (hero.skillPose || attackPulse > 0) {
     const glow = new THREE.Mesh(
       sharedGeometry("hero-skill-glow-torus", () => new THREE.TorusGeometry(0.34, 0.018, 8, 36)),
       sharedBasicMaterial(`hero-skill-glow-${hero.trim}`, { color: hero.trim, transparent: true, opacity: 0.56 })
     );
     glow.rotation.x = Math.PI / 2;
-    glow.position.y = 0.08 + skillPulse * 0.08;
+    glow.position.y = 0.08 + Math.max(skillPulse, attackPulse) * 0.08;
     group.add(glow);
   }
 
@@ -568,6 +612,7 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
 }
 
 function createLuceriaMesh(hero: Hero, state: GameState, index: number) {
+  preloadLuceriaModels();
   const group = new THREE.Group();
   group.position.copy(toWorld(hero, state));
   const model = new THREE.Group();
@@ -577,8 +622,15 @@ function createLuceriaMesh(hero: Hero, state: GameState, index: number) {
   const run = runCycle(hero);
   model.position.y = run.bob;
   model.rotation.z = hero.moving ? Math.sin(run.phase * 2) * 0.028 : 0;
-  const gltfModel = (hero.attacking ? createLuceriaAttackInstance(hero) : hero.moving ? createLuceriaRunInstance(hero) : createLuceriaIdleInstance(hero)) ?? loadLuceriaGltfModel();
+  const attackModel = hero.attacking ? createLuceriaAttackInstance(hero) : null;
+  const gltfModel = attackModel ?? (hero.moving ? createLuceriaRunInstance(hero) : createLuceriaIdleInstance(hero)) ?? loadLuceriaGltfModel();
   if (gltfModel) {
+    if (hero.attacking && !attackModel) {
+      const pulse = luceriaAttackFallbackPulse(hero);
+      model.rotation.y += 0.18 * pulse;
+      model.rotation.z -= 0.13 * pulse;
+      model.position.y += 0.04 * pulse;
+    }
     model.add(gltfModel);
     if (hero.moving) {
       removeLuceriaCrossblade(model);

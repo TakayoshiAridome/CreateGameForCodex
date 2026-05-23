@@ -11,11 +11,20 @@
 
 body {
   margin: 0;
+  width: 100vw;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   background:
     linear-gradient(135deg, rgba(59, 38, 50, 0.9), rgba(17, 28, 43, 0.95)),
     #161823;
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 button {
@@ -23,23 +32,23 @@ button {
 }
 
 .shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
-  gap: 16px;
-  width: min(1500px, 100vw);
+  position: relative;
+  width: 100vw;
   height: 100vh;
-  padding: 16px;
-  margin: 0 auto;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .stage-wrap {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
-  border: 1px solid rgba(227, 181, 93, 0.42);
+  border: 0;
   background: #242435;
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.38);
+  box-shadow: none;
 }
 
 canvas {
@@ -359,6 +368,12 @@ h1 {
 }
 
 .panel {
+  position: absolute;
+  z-index: 7;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: min(330px, calc(100vw - 32px));
   min-width: 0;
   padding: 22px;
   border: 1px solid rgba(227, 181, 93, 0.42);
@@ -368,6 +383,8 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: auto;
+  backdrop-filter: blur(10px);
 }
 
 .crest {
@@ -550,18 +567,30 @@ h2 {
 
 @media (max-width: 940px) {
   body {
-    overflow: auto;
+    overflow: hidden;
   }
 
   .shell {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: 100vh;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
   }
 
   .stage-wrap {
-    height: 68vh;
-    min-height: 520px;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .panel {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 42vh;
+    max-height: 42dvh;
+    padding: 14px;
   }
 
   .party {
@@ -586,12 +615,12 @@ h2 {
 
 @media (max-width: 520px) {
   .shell {
-    padding: 10px;
-    gap: 10px;
+    padding: 0;
+    gap: 0;
   }
 
   .stage-wrap {
-    min-height: 520px;
+    min-height: 0;
   }
 
   h1 {

@@ -17,6 +17,14 @@ export type Skill = {
   cooldown: number;
 };
 
+export type PendingBasicAttack = {
+  target: Enemy;
+  accuracy: number;
+  amount: number;
+  color: string;
+  element: ElementId;
+};
+
 export type EquipmentSlot = "weapon" | "armor" | "trinket";
 
 export type EquipmentBonus = {
@@ -66,6 +74,7 @@ export type Hero = Point & {
   runTime: number;
   attacking: boolean;
   attackTime: number;
+  pendingBasicAttack?: PendingBasicAttack;
   skillPose?: SkillPose;
   skillTime?: number;
   str: number;

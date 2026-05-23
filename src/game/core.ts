@@ -7,6 +7,11 @@ const PARTY_DETECTION_RANGE = 460;
 const ENEMY_DETECTION_RANGE = 320;
 const ELITE_DETECTION_BONUS = 60;
 const BOSS_DETECTION_BONUS = 150;
+const DEFAULT_ATTACK_MOTION_DURATION = 0.55;
+const LUCERIA_ATTACK_MOTION_DURATION = 0.92;
+const MIN_ATTACK_MOTION_DURATION = 0.28;
+const MIN_LUCERIA_ATTACK_MOTION_DURATION = 0.46;
+const MOVE_TARGET_ARRIVAL_DISTANCE = 18;
 
 function createGameState(): GameState {
   const heroes = structuredClone(initialHeroes);
@@ -455,8 +460,36 @@ function skillPoseFor(skillId: string) {
 function startSkillAnimation(hero: Hero, skillId: string) {
   hero.attacking = true;
   hero.attackTime = 0;
+  hero.pendingBasicAttack = undefined;
   hero.skillPose = skillPoseFor(skillId);
   hero.skillTime = hero.skillPose === "cast" || hero.skillPose === "rally" ? 0.78 : 0.58;
+}
+
+function attackMotionDuration(hero: Hero) {
+  const stats = heroStats(hero);
+  const baseDuration = hero.name === "ルシェリア" ? LUCERIA_ATTACK_MOTION_DURATION : DEFAULT_ATTACK_MOTION_DURATION;
+  const minDuration = hero.name === "ルシェリア" ? MIN_LUCERIA_ATTACK_MOTION_DURATION : MIN_ATTACK_MOTION_DURATION;
+  return Math.max(minDuration, baseDuration / stats.attackSpeed);
+}
+
+function beginBasicAttack(hero: Hero, target: Enemy, stats: ReturnType<typeof heroStats>) {
+  faceToward(hero, target);
+  hero.attacking = true;
+  hero.attackTime = 0;
+  const amount = stats.attack + Math.random() * 6;
+  hero.pendingBasicAttack = { target, accuracy: stats.accuracy, amount, color: hero.trim, element: hero.element };
+}
+
+function resolvePendingBasicAttack(state: GameState, hero: Hero) {
+  const pending = hero.pendingBasicAttack;
+  if (!pending) return;
+  hero.pendingBasicAttack = undefined;
+  const target = pending.target.hp > 0 ? pending.target : nearestEnemy(state, hero);
+  if (!target) return;
+  faceToward(hero, target);
+  if (damageWithAccuracy(state, target, pending.accuracy, pending.amount, pending.color, pending.element)) {
+    state.particles.push({ x: target.x, y: target.y - 32, text: "hit", color: pending.color, life: 0.45 });
+  }
 }
 
 function addSkillEffect(state: GameState, effect: Particle) {
@@ -658,9 +691,29 @@ function movementDrift(from: Point, to: Point, speed: number) {
   };
 }
 
-function moveHeroesToFormationAnchor(state: GameState, anchor: Point, dt: number, multiplier = 1.2, drift?: Point & { speed: number }) {
+function clearArrivedMoveTarget(state: GameState) {
+  if (!state.targetPoint) return;
+  if (distance(currentFormationAnchor(state), state.targetPoint) <= MOVE_TARGET_ARRIVAL_DISTANCE) {
+    state.targetPoint = null;
+  }
+}
+
+function heroHasAttackStance(state: GameState, hero: Hero) {
+  if (hero.hp <= 0) return false;
+  if (hero.attacking) return true;
+  const target = nearestEnemy(state, hero);
+  return !!target && distance(hero, target) <= heroStats(hero).range;
+}
+
+function moveHeroesToFormationAnchor(state: GameState, anchor: Point, dt: number, multiplier = 1.2, drift?: Point & { speed: number }, holdAttackStance = false) {
   for (const [index, hero] of state.heroes.entries()) {
     if (hero.hp <= 0) continue;
+    if (holdAttackStance && heroHasAttackStance(state, hero)) {
+      const target = nearestEnemy(state, hero);
+      if (target) faceToward(hero, target);
+      hero.moving = false;
+      continue;
+    }
     let driftFacing: number | null = null;
     if (drift) {
       const stats = heroStats(hero);
@@ -694,7 +747,7 @@ function keepFormationDuringCombat(state: GameState, dt: number) {
     .filter(({ hero }) => hero.hp > 0);
   const needsApproach = aliveEntries.some(({ hero, index }) => distance(formationSlotPoint(state, anchor, index), target) > heroStats(hero).range * 0.92);
   if (!needsApproach) {
-    moveHeroesToFormationAnchor(state, anchor, dt, 0.9);
+    moveHeroesToFormationAnchor(state, anchor, dt, 0.9, undefined, true);
     return false;
   }
 
@@ -702,7 +755,7 @@ function keepFormationDuringCombat(state: GameState, dt: number) {
   const nextAnchor = { ...anchor, speed: slowestSpeed };
   moveToward(nextAnchor, target, dt, 0.78, slowestSpeed);
   const clampedAnchor = clampFormationAnchor(state, nextAnchor);
-  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 0.55, movementDrift(anchor, clampedAnchor, slowestSpeed * 0.78));
+  moveHeroesToFormationAnchor(state, clampedAnchor, dt, 0.55, movementDrift(anchor, clampedAnchor, slowestSpeed * 0.78), true);
   return true;
 }
 
@@ -830,7 +883,8 @@ function updateGame(state: GameState, dt: number) {
     if ((hero.skillTime ?? 0) <= 0) hero.skillPose = undefined;
     if (hero.attacking) {
       hero.attackTime += dt;
-      if (hero.attackTime > 0.55) {
+      if (hero.attackTime > attackMotionDuration(hero)) {
+        resolvePendingBasicAttack(state, hero);
         hero.attacking = false;
         hero.attackTime = 0;
       }
@@ -850,6 +904,7 @@ function updateGame(state: GameState, dt: number) {
     const anchor = currentFormationAnchor(state);
     setFormationFrontToward(state, anchor, state.targetPoint, dt * 3.5);
     moveHeroesToFormationAnchor(state, state.targetPoint, dt, 0.45, movementDrift(anchor, state.targetPoint, 150));
+    clearArrivedMoveTarget(state);
   }
 
   if (state.area === "town") {
@@ -893,19 +948,20 @@ function updateGame(state: GameState, dt: number) {
     const stats = heroStats(hero);
     setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp);
     hero.mp = clamp(hero.mp + dt * stats.mpRegen, 0, stats.maxMp);
+    if (hero.attacking) continue;
+    if (keyboardMoved) continue;
+    if (state.targetPoint) continue;
 
     const target = nearestEnemy(state, hero);
     if (!target) continue;
     const d = distance(hero, target);
     if (d > stats.range && !state.targetPoint && !keyboardMoved) {
+      moveToward(hero, target, dt, 0.78, stats.speed);
+    } else if (d <= stats.range) {
+      hero.moving = false;
       faceToward(hero, target);
-    } else if (d <= stats.range && hero.cooldown <= 0) {
-      faceToward(hero, target);
-      hero.attacking = true;
-      hero.attackTime = 0;
-      if (damageWithAccuracy(state, target, stats.accuracy, stats.attack + Math.random() * 6, hero.trim, hero.element)) {
-        state.particles.push({ x: hero.x, y: hero.y - 32, text: "hit", color: hero.trim, life: 0.45 });
-      }
+      if (hero.cooldown > 0) continue;
+      beginBasicAttack(hero, target, stats);
       const baseCooldown = hero.weapon === "rifle" ? 1.02 : 0.76;
       hero.cooldown = baseCooldown / stats.attackSpeed;
     }
@@ -1226,6 +1282,15 @@ class GameEngine {
     const clickedHero = this.state.heroes.findIndex((hero) => Math.hypot(hero.x - point.x, hero.y - point.y) < 42);
     if (clickedHero >= 0) {
       this.selectHero(clickedHero);
+      return;
+    }
+    const clickedEnemy = this.state.enemies.find((enemy) => enemy.hp > 0 && Math.hypot(enemy.x - point.x, enemy.y - point.y) < enemy.radius + 48);
+    if (clickedEnemy) {
+      this.state.targetPoint = null;
+      clearMovement(this.state);
+      const selectedHero = this.state.heroes[this.state.selected];
+      if (selectedHero?.hp > 0) faceToward(selectedHero, clickedEnemy);
+      this.state.status = "敵をターゲット。攻撃態勢に移行。";
       return;
     }
     this.setMoveTarget(point);
