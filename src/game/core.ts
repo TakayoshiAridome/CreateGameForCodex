@@ -12,6 +12,8 @@ const LUCERIA_ATTACK_MOTION_DURATION = 0.92;
 const MIN_ATTACK_MOTION_DURATION = 0.28;
 const MIN_LUCERIA_ATTACK_MOTION_DURATION = 0.46;
 const MOVE_TARGET_ARRIVAL_DISTANCE = 18;
+const HERO_MOVEMENT_SPEED_MULTIPLIER = 1.35;
+const STANDARD_MOVEMENT_SPEED = 248;
 
 function createGameState(): GameState {
   const heroes = structuredClone(initialHeroes);
@@ -98,7 +100,7 @@ function heroStats(hero: Hero) {
     maxHp: hero.maxHp + bonus.maxHp + attributeHp + levelBonus * 18,
     maxMp: hero.maxMp + bonus.maxMp + attributeMp + levelBonus * 7,
     range: hero.range + bonus.range + Math.floor(levelBonus / 3) * 4,
-    speed: hero.speed + bonus.speed + levelBonus * 2,
+    speed: Math.round((hero.speed + bonus.speed) * HERO_MOVEMENT_SPEED_MULTIPLIER),
     physicalAttack,
     carryWeight,
     physicalDefense,
@@ -553,7 +555,7 @@ function spawnEnemy(state: GameState, boss = false) {
     y: point.y,
     hp: boss ? 420 + state.bossCount * 120 : elite ? 88 * pressure : 48 * pressure,
     maxHp: boss ? 420 + state.bossCount * 120 : elite ? 88 * pressure : 48 * pressure,
-    speed: boss ? 34 : elite ? 52 : 70,
+    speed: STANDARD_MOVEMENT_SPEED,
     attack: boss ? 18 + state.bossCount * 4 : elite ? 11 : 7,
     cooldown: 0,
     radius: boss ? 34 : elite ? 22 : 17
@@ -658,7 +660,7 @@ function movePartyWithKeyboard(state: GameState, dt: number) {
     x: right.x * inputX + down.x * inputY,
     y: right.y * inputX + down.y * inputY
   };
-  const speed = 178;
+  const speed = STANDARD_MOVEMENT_SPEED;
   setFormationFront(state, movement, dt * 3.5);
   const anchor = currentFormationAnchor(state);
   anchor.x += movement.x * speed * dt;
@@ -956,7 +958,7 @@ function updateGame(state: GameState, dt: number) {
     if (!target) continue;
     const d = distance(hero, target);
     if (d > stats.range && !state.targetPoint && !keyboardMoved) {
-      moveToward(hero, target, dt, 0.78, stats.speed);
+      moveToward(hero, target, dt, 1, stats.speed);
     } else if (d <= stats.range) {
       hero.moving = false;
       faceToward(hero, target);
