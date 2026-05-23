@@ -6,7 +6,7 @@ import { clearGroup, colorKey, createTextSprite, sharedBasicMaterial, sharedGeom
 function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const group = new THREE.Group();
   group.position.copy(areaLocal(warpPoint, state));
-  const isDungeonGate = warpPoint.target === "dungeon" || state.area === "dungeon";
+  const isDungeonGate = warpPoint.target === "spiritRootCave01" || state.area === "spiritRootCave01";
 
   const pad = new THREE.Mesh(
     sharedGeometry("warp-pad-cylinder", () => new THREE.CylinderGeometry(0.48, 0.58, 0.045, 36)),
@@ -203,9 +203,9 @@ function rebuildField(view: ThreeView, state: GameState) {
   const worldDepth = playableBottom(state);
   const width = worldWidth / WORLD_SCALE;
   const depth = worldDepth / WORLD_SCALE;
-  const groundColor = state.area === "aureleaf" ? 0x6d6f59 : state.area === "dungeon" ? 0x393446 : 0x66724a;
-  const gridColor = state.area === "aureleaf" ? 0xd8c799 : state.area === "dungeon" ? 0x886ab0 : 0xb7a56f;
-  const gridFloorColor = state.area === "aureleaf" ? 0x60664b : state.area === "dungeon" ? 0x272233 : 0x4f5c3d;
+  const groundColor = state.area === "aureleaf" ? 0x6d6f59 : state.area === "spiritRootCave01" ? 0x393446 : 0x66724a;
+  const gridColor = state.area === "aureleaf" ? 0xd8c799 : state.area === "spiritRootCave01" ? 0x886ab0 : 0xb7a56f;
+  const gridFloorColor = state.area === "aureleaf" ? 0x60664b : state.area === "spiritRootCave01" ? 0x272233 : 0x4f5c3d;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
     new THREE.MeshStandardMaterial({ color: groundColor, roughness: 0.92 })
@@ -277,7 +277,7 @@ function rebuildField(view: ThreeView, state: GameState) {
     addExpandedFieldTerrain(view.field, state);
   }
 
-  if (state.area === "dungeon") {
+  if (state.area === "spiritRootCave01") {
     addExpandedDungeonTerrain(view.field, state);
   }
 
@@ -286,7 +286,7 @@ function rebuildField(view: ThreeView, state: GameState) {
   for (let i = -3; i <= 3; i += 1) {
     const column = new THREE.Mesh(
       new THREE.CylinderGeometry(0.18, 0.24, 1.8, 12),
-      new THREE.MeshStandardMaterial({ color: state.area === "dungeon" ? 0x272230 : 0x3b3a4a, roughness: 0.8 })
+      new THREE.MeshStandardMaterial({ color: state.area === "spiritRootCave01" ? 0x272230 : 0x3b3a4a, roughness: 0.8 })
     );
     column.position.set(i * 1.9, 0.9, -depth / 2 + 0.9);
     column.castShadow = true;
@@ -295,7 +295,7 @@ function rebuildField(view: ThreeView, state: GameState) {
 
   const arch = new THREE.Mesh(
     new THREE.BoxGeometry(width, 0.18, 0.42),
-    new THREE.MeshStandardMaterial({ color: state.area === "dungeon" ? 0x5c4a6f : 0x9d8155, roughness: 0.7 })
+    new THREE.MeshStandardMaterial({ color: state.area === "spiritRootCave01" ? 0x5c4a6f : 0x9d8155, roughness: 0.7 })
   );
   arch.position.set(0, 1.92, -depth / 2 + 0.85);
   arch.castShadow = true;

@@ -63,17 +63,17 @@ export const areas: Record<AreaId, AreaDefinition> = {
     bossInterval: 28,
     enemyScale: 1
   },
-  dungeon: {
-    id: "dungeon",
-    name: "ダンジョン",
-    description: "広大で入り組んだ地下区域。敵が強く、ボスも早く現れます。",
+  spiritRootCave01: {
+    id: "spiritRootCave01",
+    name: "精霊樹の根洞1F",
+    description: "精霊樹の地下深くに広がる、巨大な根が絡み合ってできた神秘の洞窟1F。",
     spawnRate: 1.45,
     bossInterval: 18,
     enemyScale: 1.35
   }
 };
 
-export const areaOrder: AreaId[] = ["aureleaf", "spiritTreeForest01", "dungeon"];
+export const areaOrder: AreaId[] = ["aureleaf", "spiritTreeForest01", "spiritRootCave01"];
 
 export const shops: Record<ShopId, ShopDefinition> = {
   weapon: {

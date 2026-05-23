@@ -201,14 +201,14 @@ function combatBottom(state: GameState) {
 
 function playableWidth(state: GameState) {
   if (state.area === "aureleaf") return Math.max(1900, state.view.w * 2.05);
-  if (state.area === "dungeon") return Math.max(2300, state.view.w * 2.45);
+  if (state.area === "spiritRootCave01") return Math.max(2300, state.view.w * 2.45);
   if (state.area === "spiritTreeForest01") return Math.max(2400, state.view.w * 2.65);
   return state.view.w;
 }
 
 function playableBottom(state: GameState) {
   if (state.area === "aureleaf") return Math.max(1120, combatBottom(state) * 1.9);
-  if (state.area === "dungeon") return Math.max(1420, combatBottom(state) * 2.35);
+  if (state.area === "spiritRootCave01") return Math.max(1420, combatBottom(state) * 2.35);
   if (state.area === "spiritTreeForest01") return Math.max(1280, combatBottom(state) * 2.35);
   return combatBottom(state);
 }
@@ -232,10 +232,10 @@ function warpPointsForArea(state: GameState): WarpPoint[] {
   if (state.area === "spiritTreeForest01") {
     return [
       ...(primary ? [primary] : []),
-      { x: playableWidth(state) - 240, y: 210, target: "dungeon", label: "ダンジョンへ" }
+      { x: playableWidth(state) - 240, y: 210, target: "spiritRootCave01", label: "精霊樹の根洞1Fへ" }
     ];
   }
-  if (state.area === "dungeon") return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" }];
+  if (state.area === "spiritRootCave01") return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" }];
   return primary ? [primary] : [];
 }
 
@@ -296,7 +296,7 @@ function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
       ? { x: playableWidth(state) - 360, y: entryY }
       : state.area === "spiritTreeForest01"
         ? { x: fromArea === "aureleaf" ? 335 : playableWidth(state) - 370, y: fromArea === "aureleaf" ? entryY : 260 }
-        : state.area === "dungeon"
+        : state.area === "spiritRootCave01"
           ? { x: 350, y: entryY }
         : currentFormationAnchor(state);
   for (let i = 0; i < state.heroes.length; i += 1) {
@@ -313,7 +313,7 @@ function changeAreaState(state: GameState, area: AreaId) {
   state.enemies = [];
   state.particles = [];
   state.targetPoint = null;
-  state.spawnTimer = area === "dungeon" ? 0.65 : 1.1;
+  state.spawnTimer = area === "spiritRootCave01" ? 0.65 : 1.1;
   state.bossTimer = areas[area].bossInterval;
   state.status = `${areas[area].name}へ移動しました。${areas[area].description}`;
   addLog(state, `${areas[area].name}へ移動。`);
@@ -1240,7 +1240,7 @@ class GameEngine {
     this.state.enemies = [];
     this.state.particles = [];
     this.state.targetPoint = null;
-    this.state.spawnTimer = area === "dungeon" ? 0.65 : 1.1;
+    this.state.spawnTimer = area === "spiritRootCave01" ? 0.65 : 1.1;
     this.state.bossTimer = areas[area].bossInterval;
     this.state.status = `${areas[area].name}へ移動しました。${areas[area].description}`;
     addLog(this.state, `${areas[area].name}へ移動。`);
