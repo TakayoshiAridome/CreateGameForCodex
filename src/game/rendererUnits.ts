@@ -24,6 +24,7 @@ const LUCERIA_RUN_MODEL_URL = "/assets/luceria_swordsaint_run.glb";
 const LUCERIA_ATTACK_MODEL_URL = "/assets/luceria_swordsaint_attack.glb";
 const LUCERIA_CROSSBLADE_MODEL_URL = "/assets/luceria_crossblade.glb";
 const WOLF_MODEL_URL = "/assets/wolf.glb";
+const BOAR_MODEL_URL = "/assets/boar.glb";
 const LUCERIA_SATURATION = 1.62;
 const LUCERIA_RUN_VERTICAL_OFFSET = 0.18;
 const LUCERIA_RIGHT_HAND_BONE = "RightHand";
@@ -70,6 +71,11 @@ let wolfGltfClips: THREE.AnimationClip[] = [];
 let wolfGltfLoading = false;
 let wolfGltfFailed = false;
 const wolfAnimationInstances = new WeakMap<Enemy, WolfAnimationInstance>();
+let boarGltfModel: THREE.Group | null = null;
+let boarGltfClips: THREE.AnimationClip[] = [];
+let boarGltfLoading = false;
+let boarGltfFailed = false;
+const boarAnimationInstances = new WeakMap<Enemy, WolfAnimationInstance>();
 
 function heroFacingAngle(hero: Hero) {
   return hero.hp > 0 ? hero.facing : 0;
@@ -205,6 +211,19 @@ function normalizeLuceriaCrossblade(model: THREE.Group) {
 }
 
 function normalizeWolfModel(model: THREE.Group) {
+  model.rotation.y = 0;
+  model.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialSize = initialBox.getSize(new THREE.Vector3());
+  const scale = 1.48 / Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.set(-center.x, -box.min.y, -center.z);
+}
+
+function normalizeBoarModel(model: THREE.Group) {
   model.rotation.y = 0;
   model.updateMatrixWorld(true);
   const initialBox = new THREE.Box3().setFromObject(model);
@@ -390,6 +409,50 @@ function createWolfGltfInstance(enemy: Enemy) {
     mixer.setTime((enemy.animationTime ?? 0) % clip.duration);
   }
   wolfAnimationInstances.set(enemy, { model, mixer, clip });
+  return model;
+}
+
+function loadBoarGltfModel() {
+  if (boarGltfModel || boarGltfLoading || boarGltfFailed) return boarGltfModel;
+  boarGltfLoading = true;
+  new GLTFLoader().load(
+    BOAR_MODEL_URL,
+    (gltf) => {
+      boarGltfModel = gltf.scene;
+      boarGltfClips = gltf.animations;
+      normalizeBoarModel(boarGltfModel);
+      markGenericSharedObject(boarGltfModel);
+      boarGltfLoading = false;
+    },
+    undefined,
+    (error) => {
+      console.warn("Failed to load boar GLB model.", error);
+      boarGltfFailed = true;
+      boarGltfLoading = false;
+    }
+  );
+  return boarGltfModel;
+}
+
+function createBoarGltfInstance(enemy: Enemy) {
+  const source = loadBoarGltfModel();
+  if (!source) return null;
+  const cached = boarAnimationInstances.get(enemy);
+  if (cached) {
+    if (cached.mixer && cached.clip) cached.mixer.setTime((enemy.animationTime ?? 0) % cached.clip.duration);
+    return cached.model;
+  }
+  const model = cloneSkeleton(source) as THREE.Group;
+  let mixer: THREE.AnimationMixer | null = null;
+  let clip: THREE.AnimationClip | null = null;
+  if (boarGltfClips.length > 0) {
+    mixer = new THREE.AnimationMixer(model);
+    clip = boarGltfClips[0];
+    const action = mixer.clipAction(clip);
+    action.play();
+    mixer.setTime((enemy.animationTime ?? 0) % clip.duration);
+  }
+  boarAnimationInstances.set(enemy, { model, mixer, clip });
   return model;
 }
 
@@ -887,16 +950,23 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
   group.add(model);
   const isBoss = enemy.type === "boss";
   const isWolf = enemy.type === "wolf";
-  const radius = isBoss ? 0.38 : enemy.type === "duelist" ? 0.25 : 0.2;
+  const isBoar = enemy.type === "boar";
+  const radius = isBoss ? 0.38 : enemy.type === "duelist" ? 0.25 : isBoar ? 0.26 : 0.2;
   const elementColor = new THREE.Color(elementColors[enemy.element]).getHex();
   const wolfModel = isWolf ? createWolfGltfInstance(enemy) : null;
+  const boarModel = isBoar ? createBoarGltfInstance(enemy) : null;
   if (wolfModel) {
     model.add(wolfModel);
+  }
+  if (boarModel) {
+    model.add(boarModel);
   }
   const bodyGeometry = isBoss
     ? sharedGeometry(`enemy-boss-${radius}`, () => new THREE.DodecahedronGeometry(radius, 0))
     : isWolf
       ? sharedGeometry("enemy-wolf-body", () => new THREE.BoxGeometry(0.26, 0.24, 0.5))
+      : isBoar
+        ? sharedGeometry("enemy-boar-body", () => new THREE.SphereGeometry(0.34, 18, 12))
       : sharedGeometry(`enemy-${enemy.type}-${radius}`, () => new THREE.ConeGeometry(radius, 0.56, 5));
   const body = new THREE.Mesh(
     bodyGeometry,
@@ -906,9 +976,10 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
       metalness: isBoss ? 0.18 : 0.04
     })
   );
+  if (isBoar) body.scale.set(1.25, 0.72, 1.62);
   body.position.y = isBoss ? 0.56 : isWolf ? 0.28 : 0.36;
   body.castShadow = true;
-  if (!wolfModel) model.add(body);
+  if (!wolfModel && !boarModel) model.add(body);
 
   if (isWolf && !wolfModel) {
     const head = new THREE.Mesh(
@@ -930,6 +1001,28 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
         leg.castShadow = true;
         model.add(leg);
       }
+    }
+  }
+
+  if (isBoar && !boarModel) {
+    const snout = new THREE.Mesh(
+      sharedGeometry("enemy-boar-snout", () => new THREE.CapsuleGeometry(0.1, 0.16, 4, 8)),
+      sharedStandardMaterial(`enemy-boar-snout-${elementColor}`, { color: elementColor, roughness: 0.72, metalness: 0.02 })
+    );
+    snout.position.set(0, 0.36, 0.5);
+    snout.rotation.x = Math.PI / 2;
+    snout.castShadow = true;
+    model.add(snout);
+
+    for (const x of [-0.12, 0.12]) {
+      const tusk = new THREE.Mesh(
+        sharedGeometry("enemy-boar-tusk", () => new THREE.ConeGeometry(0.026, 0.18, 8)),
+        sharedBasicMaterial("enemy-boar-tusk", { color: 0xf4ead2 })
+      );
+      tusk.position.set(x, 0.34, 0.58);
+      tusk.rotation.x = Math.PI * 0.62;
+      tusk.castShadow = true;
+      model.add(tusk);
     }
   }
 
