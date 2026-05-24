@@ -398,7 +398,7 @@ function moveToward(unit: Point & { speed: number; facing?: number }, point: Poi
   const dx = point.x - unit.x;
   const dy = point.y - unit.y;
   const d = Math.hypot(dx, dy);
-  if (d < 2) return;
+  if (d < 2) return 0;
   faceToward(unit, point);
   const step = Math.min(d, (speedOverride ?? unit.speed) * multiplier * dt);
   unit.x += (dx / d) * step;
@@ -408,6 +408,7 @@ function moveToward(unit: Point & { speed: number; facing?: number }, point: Poi
     animatedUnit.moving = true;
     animatedUnit.runTime = (animatedUnit.runTime ?? 0) + step * 0.055;
   }
+  return step;
 }
 
 function damage(state: GameState, target: Enemy | Hero, amount: number, color = "#ffd47d") {
@@ -515,6 +516,10 @@ function emitSkillEffect(state: GameState, skillId: string, hero: Hero, target: 
   else if (skillId === "blade-cleave") addSkillEffect(state, { x: center.x, y: center.y, text: "slash", color, life: 0.5, kind: "slash", radius: 118, angle });
   else if (skillId === "blade-guard") addSkillEffect(state, { x: hero.x, y: hero.y, text: "guard", color, life: 0.75, kind: "aura", radius: 92 });
   else if (skillId === "blade-rally") addSkillEffect(state, { x: hero.x, y: hero.y, text: "rally", color, life: 0.8, kind: "ring", radius: 168 });
+  else if (skillId === "cordels-flame-rush") addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "緋狼突", color: "#ff8d62", life: 0.5, kind: "beam", angle });
+  else if (skillId === "cordels-ash-break") addSkillEffect(state, { x: center.x, y: center.y, text: "灰燼断", color: "#ffb15f", life: 0.58, kind: "slash", radius: 136, angle });
+  else if (skillId === "cordels-brand-guard") addSkillEffect(state, { x: hero.x, y: hero.y, text: "火印", color: "#ff8d62", life: 0.85, kind: "aura", radius: 108 });
+  else if (skillId === "cordels-warflame") addSkillEffect(state, { x: hero.x, y: hero.y, text: "戦火", color: "#ffb15f", life: 0.9, kind: "ring", radius: 182 });
   else if (skillId === "rifle-shot") addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "shot", color, life: 0.32, kind: "beam", angle });
   else if (skillId === "rifle-grenade") addSkillEffect(state, { x: center.x, y: center.y, text: "blast", color: "#ffc27a", life: 0.62, kind: "burst", radius: 132 });
   else if (skillId === "rifle-smoke") addSkillEffect(state, { x: hero.x, y: hero.y, text: "smoke", color: "#c7d5e8", life: 0.9, kind: "aura", radius: 190 });
@@ -590,13 +595,15 @@ function updateWolfRandomWalk(state: GameState, enemy: Enemy, dt: number) {
     enemy.wanderTarget = randomWolfWanderTarget(state, enemy);
     enemy.wanderTimer = 1.4 + Math.random() * 2.4;
   }
-  moveToward(enemy, enemy.wanderTarget, dt);
+  const step = moveToward(enemy, enemy.wanderTarget, dt);
+  enemy.animationTime = (enemy.animationTime ?? 0) + step * 0.045;
 }
 
 function performEnemyAttack(state: GameState, enemy: Enemy, target: Hero) {
   faceToward(enemy, target);
   const targetStats = heroStats(target);
   const isBite = enemy.skill?.id === "bite";
+  if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * 0.045 * 0.32;
   if (isBite) {
     addSkillEffect(state, {
       x: target.x,
@@ -856,6 +863,30 @@ function useSkill(state: GameState, key: SkillKey) {
     }
   }
 
+  if (skill.id === "cordels-flame-rush" && target) {
+    moveToward(hero, target, 1, 3.45);
+    damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.85, "#ff8d62", "fire");
+  }
+  if (skill.id === "cordels-ash-break") {
+    const center = target ?? hero;
+    for (const enemy of enemiesNear(state, center, 118)) {
+      damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#ffb15f", "fire");
+    }
+  }
+  if (skill.id === "cordels-brand-guard") {
+    setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 18 + Math.floor(physicalPower * 0.42));
+    hero.mp = clamp(hero.mp + 8, 0, stats.maxMp);
+    state.particles.push({ x: hero.x, y: hero.y - 30, text: "fire guard", color: "#ff8d62", life: 0.9 });
+  }
+  if (skill.id === "cordels-warflame") {
+    for (const [allyIndex, ally] of state.heroes.entries()) {
+      setHeroHp(state, ally, allyIndex, ally.hp + 10 + Math.floor(physicalPower * 0.18));
+      ally.mp = clamp(ally.mp + 10, 0, heroStats(ally).maxMp);
+      state.particles.push({ x: ally.x, y: ally.y - 30, text: "flame", color: "#ffb15f", life: 0.9 });
+    }
+    for (const enemy of enemiesNear(state, hero, 160)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.52, "#ff8d62", "fire");
+  }
+
   if (skill.id === "rifle-shot" && target) damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.45, "#d9ecff", hero.element);
   if (skill.id === "rifle-grenade" && target) {
     for (const enemy of enemiesNear(state, target, 112)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.95, "#ffc27a", hero.element);
@@ -1027,10 +1058,14 @@ function updateGame(state: GameState, dt: number) {
     }
     if (distance(enemy, target) > enemy.radius + 28) {
       enemy.wanderTarget = undefined;
-      moveToward(enemy, target, dt);
-    } else if (enemy.cooldown <= 0) {
-      performEnemyAttack(state, enemy, target);
-      enemy.cooldown = enemy.skill?.id === "bite" ? 1.1 : 1.28;
+      const step = moveToward(enemy, target, dt);
+      enemy.animationTime = (enemy.animationTime ?? 0) + step * 0.045;
+    } else {
+      if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * dt * 0.045;
+      if (enemy.cooldown <= 0) {
+        performEnemyAttack(state, enemy, target);
+        enemy.cooldown = enemy.skill?.id === "bite" ? 1.1 : 1.28;
+      }
     }
   }
 

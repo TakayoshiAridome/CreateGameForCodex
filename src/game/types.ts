@@ -110,6 +110,7 @@ export type Enemy = Point & {
   attack: number;
   cooldown: number;
   radius: number;
+  animationTime?: number;
   wanderTarget?: Point;
   wanderTimer?: number;
 };

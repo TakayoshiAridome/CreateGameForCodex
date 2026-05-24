@@ -350,7 +350,7 @@ export const initialHeroes: Hero[] = [
 ];
 
 export function createReserveHeroes(): Hero[] {
-  const reserves = structuredClone([initialHeroes[0], initialHeroes[1], initialHeroes[2], initialHeroes[0]]);
+  const reserves = structuredClone([initialHeroes[0], initialHeroes[1], initialHeroes[2], initialHeroes[0], initialHeroes[0]]);
 
   reserves[0] = {
     ...reserves[0],
@@ -470,6 +470,47 @@ export function createReserveHeroes(): Hero[] {
       { attack: 8 },
       { maxHp: 30, speed: 3 },
       { maxMp: 10, attack: 3 }
+    )
+  };
+
+  reserves[4] = {
+    ...reserves[4],
+    name: "コーデルス",
+    role: "ファイター",
+    color: "#5f2c22",
+    trim: "#ffb15f",
+    hair: "#2a1d18",
+    accent: "#d7b98a",
+    element: "fire",
+    hp: 182,
+    maxHp: 182,
+    mp: 60,
+    maxMp: 82,
+    str: 18,
+    vit: 14,
+    agi: 11,
+    int: 7,
+    dex: 11,
+    men: 8,
+    attack: 26,
+    range: 52,
+    speed: 166,
+    x: 0,
+    y: 0,
+    skills: [
+      { key: "r", id: "cordels-flame-rush", name: "緋狼突", cost: 32, cooldown: 4.4 },
+      { key: "f", id: "cordels-ash-break", name: "灰燼断", cost: 38, cooldown: 5.8 },
+      { key: "t", id: "cordels-brand-guard", name: "火印の構え", cost: 28, cooldown: 7.4 },
+      { key: "g", id: "cordels-warflame", name: "戦火鼓舞", cost: 46, cooldown: 9.6 }
+    ],
+    skillCooldowns: emptySkillCooldowns(),
+    equipment: createEquipment(
+      "紅鉄の長剣",
+      "傭兵隊長の鎧",
+      "火紋の徽章",
+      { attack: 7 },
+      { maxHp: 32 },
+      { attack: 3, maxMp: 8 }
     )
   };
 

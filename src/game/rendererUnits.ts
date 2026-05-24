@@ -12,12 +12,18 @@ type LuceriaAnimationInstance = {
   clip: THREE.AnimationClip | null;
   baseY: number;
 };
+type WolfAnimationInstance = {
+  model: THREE.Group;
+  mixer: THREE.AnimationMixer | null;
+  clip: THREE.AnimationClip | null;
+};
 
 const LUCERIA_MODEL_URL = "/assets/luceria_swordsaint_apoze.glb";
 const LUCERIA_IDLE_MODEL_URL = "/assets/luceria_swordsaint_idle.glb";
 const LUCERIA_RUN_MODEL_URL = "/assets/luceria_swordsaint_run.glb";
 const LUCERIA_ATTACK_MODEL_URL = "/assets/luceria_swordsaint_attack.glb";
 const LUCERIA_CROSSBLADE_MODEL_URL = "/assets/luceria_crossblade.glb";
+const WOLF_MODEL_URL = "/assets/wolf.glb";
 const LUCERIA_SATURATION = 1.62;
 const LUCERIA_RUN_VERTICAL_OFFSET = 0.18;
 const LUCERIA_RIGHT_HAND_BONE = "RightHand";
@@ -59,6 +65,11 @@ let luceriaCrossbladeModel: THREE.Group | null = null;
 let luceriaCrossbladeLoading = false;
 let luceriaCrossbladeFailed = false;
 const luceriaAnimationInstances: Partial<Record<LuceriaAnimationKind, LuceriaAnimationInstance>> = {};
+let wolfGltfModel: THREE.Group | null = null;
+let wolfGltfClips: THREE.AnimationClip[] = [];
+let wolfGltfLoading = false;
+let wolfGltfFailed = false;
+const wolfAnimationInstances = new WeakMap<Enemy, WolfAnimationInstance>();
 
 function heroFacingAngle(hero: Hero) {
   return hero.hp > 0 ? hero.facing : 0;
@@ -193,6 +204,42 @@ function normalizeLuceriaCrossblade(model: THREE.Group) {
   model.position.set(-center.x, -center.y, -center.z);
 }
 
+function normalizeWolfModel(model: THREE.Group) {
+  model.rotation.y = 0;
+  model.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialSize = initialBox.getSize(new THREE.Vector3());
+  const scale = 1.12 / Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.set(-center.x, -box.min.y, -center.z);
+}
+
+function markGenericSharedObject(object: THREE.Object3D) {
+  object.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    child.castShadow = true;
+    child.receiveShadow = true;
+    if (!mesh.isMesh) return;
+    if (mesh.geometry) mesh.geometry.userData.shared = true;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) {
+      if (!material) continue;
+      markSharedMaterial(material);
+      const litMaterial = material as THREE.MeshStandardMaterial;
+      const texturedMaterial = material as THREE.Material & Partial<Record<(typeof sharedTextureKeys)[number], THREE.Texture>>;
+      if (texturedMaterial.map) {
+        texturedMaterial.map.colorSpace = THREE.SRGBColorSpace;
+        texturedMaterial.map.needsUpdate = true;
+      }
+      if (litMaterial.color) litMaterial.color.multiplyScalar(1.08);
+      if (typeof litMaterial.roughness === "number") litMaterial.roughness = Math.min(0.88, litMaterial.roughness + 0.08);
+    }
+  });
+}
+
 function loadLuceriaGltfModel() {
   if (luceriaGltfModel || luceriaGltfLoading || luceriaGltfFailed) return luceriaGltfModel;
   luceriaGltfLoading = true;
@@ -300,6 +347,50 @@ function loadLuceriaCrossbladeModel() {
     }
   );
   return luceriaCrossbladeModel;
+}
+
+function loadWolfGltfModel() {
+  if (wolfGltfModel || wolfGltfLoading || wolfGltfFailed) return wolfGltfModel;
+  wolfGltfLoading = true;
+  new GLTFLoader().load(
+    WOLF_MODEL_URL,
+    (gltf) => {
+      wolfGltfModel = gltf.scene;
+      wolfGltfClips = gltf.animations;
+      normalizeWolfModel(wolfGltfModel);
+      markGenericSharedObject(wolfGltfModel);
+      wolfGltfLoading = false;
+    },
+    undefined,
+    (error) => {
+      console.warn("Failed to load wolf GLB model.", error);
+      wolfGltfFailed = true;
+      wolfGltfLoading = false;
+    }
+  );
+  return wolfGltfModel;
+}
+
+function createWolfGltfInstance(enemy: Enemy) {
+  const source = loadWolfGltfModel();
+  if (!source) return null;
+  const cached = wolfAnimationInstances.get(enemy);
+  if (cached) {
+    if (cached.mixer && cached.clip) cached.mixer.setTime((enemy.animationTime ?? 0) % cached.clip.duration);
+    return cached.model;
+  }
+  const model = cloneSkeleton(source) as THREE.Group;
+  let mixer: THREE.AnimationMixer | null = null;
+  let clip: THREE.AnimationClip | null = null;
+  if (wolfGltfClips.length > 0) {
+    mixer = new THREE.AnimationMixer(model);
+    clip = wolfGltfClips[0];
+    const action = mixer.clipAction(clip);
+    action.play();
+    mixer.setTime((enemy.animationTime ?? 0) % clip.duration);
+  }
+  wolfAnimationInstances.set(enemy, { model, mixer, clip });
+  return model;
 }
 
 function preloadLuceriaModels() {
@@ -798,6 +889,10 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
   const isWolf = enemy.type === "wolf";
   const radius = isBoss ? 0.38 : enemy.type === "duelist" ? 0.25 : 0.2;
   const elementColor = new THREE.Color(elementColors[enemy.element]).getHex();
+  const wolfModel = isWolf ? createWolfGltfInstance(enemy) : null;
+  if (wolfModel) {
+    model.add(wolfModel);
+  }
   const bodyGeometry = isBoss
     ? sharedGeometry(`enemy-boss-${radius}`, () => new THREE.DodecahedronGeometry(radius, 0))
     : isWolf
@@ -813,9 +908,9 @@ function createEnemyMesh(enemy: Enemy, state: GameState) {
   );
   body.position.y = isBoss ? 0.56 : isWolf ? 0.28 : 0.36;
   body.castShadow = true;
-  model.add(body);
+  if (!wolfModel) model.add(body);
 
-  if (isWolf) {
+  if (isWolf && !wolfModel) {
     const head = new THREE.Mesh(
       sharedGeometry("enemy-wolf-head", () => new THREE.ConeGeometry(0.18, 0.28, 4)),
       sharedStandardMaterial(`enemy-wolf-head-${elementColor}`, { color: elementColor, roughness: 0.66, metalness: 0.02 })
