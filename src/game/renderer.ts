@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { clamp, type AreaId, type GameState, type Point } from "./core";
 import { areaBaseCenter, cameraCenterForState, toWorld, WORLD_SCALE } from "./rendererCamera";
+import { createEnemyMesh } from "./rendererEnemies";
 import { rebuildField } from "./rendererTerrain";
-import { createEnemyMesh, createHeroMesh } from "./rendererUnits";
+import { createHeroMesh } from "./rendererUnits";
 import { clearGroup, createTextSprite, disposeThreeView, sharedBasicMaterial, sharedGeometry, type ThreeView } from "./rendererShared";
 import type { Particle } from "./types";
 

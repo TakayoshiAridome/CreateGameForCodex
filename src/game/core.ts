@@ -1,4 +1,5 @@
 import { areaOrder, areas, cloneEquipment, consumableCatalog, createReserveHeroes, elementAdvantage, elementColors, elementLabels, equipmentCatalog, formations, initialHeroes, shopOrder, shops, skillKeys } from "./data";
+import { clamp, distance, faceToward, facingAngle, moveToward } from "./coreMath";
 import type { AreaId, ConsumableId, ElementId, Enemy, Equipment, EquipmentBonus, EquipmentSlot, GameState, Hero, HudState, Particle, Point, ShopId, SkillKey, WarpPoint } from "./types";
 
 const HERO_DETECTION_RANGE = 360;
@@ -20,6 +21,7 @@ const BEAR_MOVEMENT_SPEED_MULTIPLIER = 0.96;
 const WOLF_ANIMATION_SPEED = 0.032;
 const BOAR_ANIMATION_SPEED = 0.024;
 const BEAR_ANIMATION_SPEED = 0.02;
+type ForestEnemyType = "wolf" | "boar" | "bear";
 
 function createGameState(): GameState {
   const heroes = structuredClone(initialHeroes);
@@ -64,10 +66,6 @@ function createGameState(): GameState {
     logs: ["アルカディア開拓団、出撃。"],
     status: "クリックで移動、1-3で家門メンバーを選択。三人を同時に動かして、迫る敵を迎撃してください。"
   };
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function equipmentBonus(hero: Hero): Required<EquipmentBonus> {
@@ -195,10 +193,6 @@ function recoverAtTown(state: GameState, penalty = false) {
   state.status = penalty
     ? "Party wiped out. EXP and Gold decreased by 10%, then returned to Aureleaf."
     : "The party recovered in Aureleaf.";
-}
-
-function distance(a: Point, b: Point) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function combatBottom(state: GameState) {
@@ -388,34 +382,6 @@ function nearestHeroForEnemy(enemy: Enemy, heroes: Hero[]) {
   return best;
 }
 
-function facingAngle(from: Point, to: Point) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  if (Math.hypot(dx, dy) < 0.001) return 0;
-  return Math.atan2(dx, dy);
-}
-
-function faceToward(unit: Point & { facing?: number }, point: Point) {
-  unit.facing = facingAngle(unit, point);
-}
-
-function moveToward(unit: Point & { speed: number; facing?: number }, point: Point, dt: number, multiplier = 1, speedOverride?: number) {
-  const dx = point.x - unit.x;
-  const dy = point.y - unit.y;
-  const d = Math.hypot(dx, dy);
-  if (d < 2) return 0;
-  faceToward(unit, point);
-  const step = Math.min(d, (speedOverride ?? unit.speed) * multiplier * dt);
-  unit.x += (dx / d) * step;
-  unit.y += (dy / d) * step;
-  const animatedUnit = unit as Point & { moving?: boolean; runTime?: number };
-  if ("moving" in animatedUnit) {
-    animatedUnit.moving = true;
-    animatedUnit.runTime = (animatedUnit.runTime ?? 0) + step * 0.055;
-  }
-  return step;
-}
-
 function damage(state: GameState, target: Enemy | Hero, amount: number, color = "#ffd47d") {
   const heroIndex = state.heroes.indexOf(target as Hero);
   if (heroIndex >= 0) {
@@ -552,44 +518,100 @@ function randomSpawnPoint(state: GameState) {
   return point;
 }
 
+function rollForestEnemyType(): ForestEnemyType {
+  const roll = Math.random();
+  if (roll < 0.32) return "boar";
+  if (roll < 0.52) return "bear";
+  return "wolf";
+}
+
+function forestEnemySkill(type: ForestEnemyType) {
+  if (type === "wolf") return { id: "bite" as const, name: "かみつき" };
+  if (type === "boar") return { id: "charge" as const, name: "突進" };
+  return { id: "scratch" as const, name: "引っ掻き" };
+}
+
+function forestEnemyLabel(type: ForestEnemyType) {
+  if (type === "wolf") return "ウルフ";
+  if (type === "boar") return "ボア";
+  return "ベア";
+}
+
+function forestEnemyStats(type: ForestEnemyType, pressure: number) {
+  if (type === "wolf") {
+    return {
+      hp: 58 * pressure,
+      speed: STANDARD_MOVEMENT_SPEED * WOLF_MOVEMENT_SPEED_MULTIPLIER,
+      attack: 8,
+      radius: 19
+    };
+  }
+  if (type === "boar") {
+    return {
+      hp: 72 * pressure,
+      speed: STANDARD_MOVEMENT_SPEED * BOAR_MOVEMENT_SPEED_MULTIPLIER,
+      attack: 10,
+      radius: 23
+    };
+  }
+  return {
+    hp: 96 * pressure,
+    speed: STANDARD_MOVEMENT_SPEED * BEAR_MOVEMENT_SPEED_MULTIPLIER,
+    attack: 13,
+    radius: 28
+  };
+}
+
+function standardEnemyType(elite: boolean) {
+  return elite ? "duelist" : "corsair";
+}
+
+function standardEnemyStats(elite: boolean, pressure: number) {
+  return {
+    hp: (elite ? 88 : 48) * pressure,
+    speed: STANDARD_MOVEMENT_SPEED,
+    attack: elite ? 11 : 7,
+    radius: elite ? 22 : 17
+  };
+}
+
 function spawnEnemy(state: GameState, boss = false) {
   if (state.area === "aureleaf") return;
   const point = randomSpawnPoint(state);
   const area = currentArea(state);
-  const forestRoll = Math.random();
-  const forestEnemyType: "wolf" | "boar" | "bear" | null =
-    !boss && state.area === "spiritTreeForest01" ? (forestRoll < 0.32 ? "boar" : forestRoll < 0.52 ? "bear" : "wolf") : null;
-  const forestWolf = forestEnemyType === "wolf";
-  const forestBoar = forestEnemyType === "boar";
-  const forestBear = forestEnemyType === "bear";
+  const forestEnemyType = !boss && state.area === "spiritTreeForest01" ? rollForestEnemyType() : null;
   const forestEnemy = forestEnemyType !== null;
   const elite = !boss && !forestEnemy && Math.random() < 0.18 + Math.min(0.18, state.score / 5000);
   const pressure = (1 + Math.min(1.6, state.score / 2200)) * area.enemyScale;
   const enemyElements: ElementId[] = ["fire", "water", "wind", "earth", "dark"];
+  const baseStats = boss
+    ? {
+      hp: 420 + state.bossCount * 120,
+      speed: STANDARD_MOVEMENT_SPEED,
+      attack: 18 + state.bossCount * 4,
+      radius: 34
+    }
+    : forestEnemyType
+      ? forestEnemyStats(forestEnemyType, pressure)
+      : standardEnemyStats(elite, pressure);
   state.enemies.push({
-    type: boss ? "boss" : forestEnemyType ?? (elite ? "duelist" : "corsair"),
+    type: boss ? "boss" : forestEnemyType ?? standardEnemyType(elite),
     element: boss ? (state.bossCount % 2 === 0 ? "dark" : "light") : forestEnemy ? "earth" : enemyElements[Math.floor(Math.random() * enemyElements.length)],
-    skill: forestWolf ? { id: "bite", name: "かみつき" } : forestBoar ? { id: "charge", name: "突進" } : forestBear ? { id: "scratch", name: "引っ掻き" } : undefined,
+    skill: forestEnemyType ? forestEnemySkill(forestEnemyType) : undefined,
     x: point.x,
     y: point.y,
     facing: Math.random() * Math.PI * 2,
-    hp: boss ? 420 + state.bossCount * 120 : forestBear ? 96 * pressure : forestBoar ? 72 * pressure : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
-    maxHp: boss ? 420 + state.bossCount * 120 : forestBear ? 96 * pressure : forestBoar ? 72 * pressure : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
-    speed: forestBear
-      ? STANDARD_MOVEMENT_SPEED * BEAR_MOVEMENT_SPEED_MULTIPLIER
-      : forestBoar
-        ? STANDARD_MOVEMENT_SPEED * BOAR_MOVEMENT_SPEED_MULTIPLIER
-        : forestWolf
-          ? STANDARD_MOVEMENT_SPEED * WOLF_MOVEMENT_SPEED_MULTIPLIER
-          : STANDARD_MOVEMENT_SPEED,
-    attack: boss ? 18 + state.bossCount * 4 : forestBear ? 13 : forestBoar ? 10 : forestWolf ? 8 : elite ? 11 : 7,
+    hp: baseStats.hp,
+    maxHp: baseStats.hp,
+    speed: baseStats.speed,
+    attack: baseStats.attack,
     cooldown: 0,
-    radius: boss ? 34 : forestBear ? 28 : forestBoar ? 23 : forestWolf ? 19 : elite ? 22 : 17
+    radius: baseStats.radius
   });
   state.particles.push({
     x: point.x,
     y: point.y - (boss ? 54 : 34),
-    text: boss ? "BOSS" : forestBear ? "ベア" : forestBoar ? "ボア" : forestWolf ? "ウルフ" : "pop",
+    text: boss ? "BOSS" : forestEnemyType ? forestEnemyLabel(forestEnemyType) : "pop",
     color: boss ? "#ffcf6f" : forestEnemy ? elementColors.earth : "#d9ecff",
     life: 1.1
   });
