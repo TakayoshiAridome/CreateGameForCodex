@@ -16,7 +16,10 @@ const HERO_MOVEMENT_SPEED_MULTIPLIER = 1.35;
 const STANDARD_MOVEMENT_SPEED = 248;
 const WOLF_MOVEMENT_SPEED_MULTIPLIER = 1.05;
 const BOAR_MOVEMENT_SPEED_MULTIPLIER = 1.02;
+const BEAR_MOVEMENT_SPEED_MULTIPLIER = 0.96;
 const WOLF_ANIMATION_SPEED = 0.032;
+const BOAR_ANIMATION_SPEED = 0.024;
+const BEAR_ANIMATION_SPEED = 0.02;
 
 function createGameState(): GameState {
   const heroes = structuredClone(initialHeroes);
@@ -553,9 +556,12 @@ function spawnEnemy(state: GameState, boss = false) {
   if (state.area === "aureleaf") return;
   const point = randomSpawnPoint(state);
   const area = currentArea(state);
-  const forestEnemyType: "wolf" | "boar" | null = !boss && state.area === "spiritTreeForest01" ? (Math.random() < 0.42 ? "boar" : "wolf") : null;
+  const forestRoll = Math.random();
+  const forestEnemyType: "wolf" | "boar" | "bear" | null =
+    !boss && state.area === "spiritTreeForest01" ? (forestRoll < 0.32 ? "boar" : forestRoll < 0.52 ? "bear" : "wolf") : null;
   const forestWolf = forestEnemyType === "wolf";
   const forestBoar = forestEnemyType === "boar";
+  const forestBear = forestEnemyType === "bear";
   const forestEnemy = forestEnemyType !== null;
   const elite = !boss && !forestEnemy && Math.random() < 0.18 + Math.min(0.18, state.score / 5000);
   const pressure = (1 + Math.min(1.6, state.score / 2200)) * area.enemyScale;
@@ -563,21 +569,27 @@ function spawnEnemy(state: GameState, boss = false) {
   state.enemies.push({
     type: boss ? "boss" : forestEnemyType ?? (elite ? "duelist" : "corsair"),
     element: boss ? (state.bossCount % 2 === 0 ? "dark" : "light") : forestEnemy ? "earth" : enemyElements[Math.floor(Math.random() * enemyElements.length)],
-    skill: forestWolf ? { id: "bite", name: "かみつき" } : forestBoar ? { id: "charge", name: "突進" } : undefined,
+    skill: forestWolf ? { id: "bite", name: "かみつき" } : forestBoar ? { id: "charge", name: "突進" } : forestBear ? { id: "scratch", name: "引っ掻き" } : undefined,
     x: point.x,
     y: point.y,
     facing: Math.random() * Math.PI * 2,
-    hp: boss ? 420 + state.bossCount * 120 : forestBoar ? 72 * pressure : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
-    maxHp: boss ? 420 + state.bossCount * 120 : forestBoar ? 72 * pressure : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
-    speed: forestBoar ? STANDARD_MOVEMENT_SPEED * BOAR_MOVEMENT_SPEED_MULTIPLIER : forestWolf ? STANDARD_MOVEMENT_SPEED * WOLF_MOVEMENT_SPEED_MULTIPLIER : STANDARD_MOVEMENT_SPEED,
-    attack: boss ? 18 + state.bossCount * 4 : forestBoar ? 10 : forestWolf ? 8 : elite ? 11 : 7,
+    hp: boss ? 420 + state.bossCount * 120 : forestBear ? 96 * pressure : forestBoar ? 72 * pressure : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
+    maxHp: boss ? 420 + state.bossCount * 120 : forestBear ? 96 * pressure : forestBoar ? 72 * pressure : forestWolf ? 58 * pressure : elite ? 88 * pressure : 48 * pressure,
+    speed: forestBear
+      ? STANDARD_MOVEMENT_SPEED * BEAR_MOVEMENT_SPEED_MULTIPLIER
+      : forestBoar
+        ? STANDARD_MOVEMENT_SPEED * BOAR_MOVEMENT_SPEED_MULTIPLIER
+        : forestWolf
+          ? STANDARD_MOVEMENT_SPEED * WOLF_MOVEMENT_SPEED_MULTIPLIER
+          : STANDARD_MOVEMENT_SPEED,
+    attack: boss ? 18 + state.bossCount * 4 : forestBear ? 13 : forestBoar ? 10 : forestWolf ? 8 : elite ? 11 : 7,
     cooldown: 0,
-    radius: boss ? 34 : forestBoar ? 23 : forestWolf ? 19 : elite ? 22 : 17
+    radius: boss ? 34 : forestBear ? 28 : forestBoar ? 23 : forestWolf ? 19 : elite ? 22 : 17
   });
   state.particles.push({
     x: point.x,
     y: point.y - (boss ? 54 : 34),
-    text: boss ? "BOSS" : forestBoar ? "ボア" : forestWolf ? "ウルフ" : "pop",
+    text: boss ? "BOSS" : forestBear ? "ベア" : forestBoar ? "ボア" : forestWolf ? "ウルフ" : "pop",
     color: boss ? "#ffcf6f" : forestEnemy ? elementColors.earth : "#d9ecff",
     life: 1.1
   });
@@ -593,15 +605,20 @@ function randomBeastWanderTarget(state: GameState, enemy: Enemy) {
   };
 }
 
+function enemyAnimationSpeed(enemy: Enemy) {
+  if (enemy.type === "boar") return BOAR_ANIMATION_SPEED;
+  return enemy.type === "bear" ? BEAR_ANIMATION_SPEED : WOLF_ANIMATION_SPEED;
+}
+
 function updateBeastRandomWalk(state: GameState, enemy: Enemy, dt: number) {
-  if (enemy.type !== "wolf" && enemy.type !== "boar") return;
+  if (enemy.type !== "wolf" && enemy.type !== "boar" && enemy.type !== "bear") return;
   enemy.wanderTimer = Math.max(0, (enemy.wanderTimer ?? 0) - dt);
   if (!enemy.wanderTarget || enemy.wanderTimer <= 0 || distance(enemy, enemy.wanderTarget) < 12) {
     enemy.wanderTarget = randomBeastWanderTarget(state, enemy);
     enemy.wanderTimer = 1.4 + Math.random() * 2.4;
   }
   const step = moveToward(enemy, enemy.wanderTarget, dt);
-  enemy.animationTime = (enemy.animationTime ?? 0) + step * WOLF_ANIMATION_SPEED;
+  enemy.animationTime = (enemy.animationTime ?? 0) + step * enemyAnimationSpeed(enemy);
 }
 
 function performEnemyAttack(state: GameState, enemy: Enemy, target: Hero) {
@@ -609,6 +626,7 @@ function performEnemyAttack(state: GameState, enemy: Enemy, target: Hero) {
   const targetStats = heroStats(target);
   const isBite = enemy.skill?.id === "bite";
   const isCharge = enemy.skill?.id === "charge";
+  const isScratch = enemy.skill?.id === "scratch";
   if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * WOLF_ANIMATION_SPEED * 0.32;
   if (isBite) {
     addSkillEffect(state, {
@@ -648,15 +666,38 @@ function performEnemyAttack(state: GameState, enemy: Enemy, target: Hero) {
       radius: 64
     });
   }
+  if (isScratch) {
+    addSkillEffect(state, {
+      x: target.x,
+      y: target.y,
+      text: enemy.skill?.name ?? "引っ掻き",
+      color: elementColors.earth,
+      life: 0.42,
+      kind: "slash",
+      radius: 96,
+      angle: enemy.facing + 0.35
+    });
+    addSkillEffect(state, {
+      x: target.x + Math.sin(enemy.facing) * 14,
+      y: target.y + Math.cos(enemy.facing) * 14,
+      text: enemy.skill?.name ?? "引っ掻き",
+      color: "#d6b47a",
+      life: 0.36,
+      kind: "slash",
+      radius: 72,
+      angle: enemy.facing - 0.45
+    });
+  }
   if (Math.random() < targetStats.evasion) {
     state.particles.push({ x: target.x, y: target.y - 28, text: "evade", color: "#d9ecff", life: 0.45 });
     return;
   }
-  const skillPower = isCharge ? 1.32 : isBite ? 1.18 : 1;
+  const skillPower = isScratch ? 1.22 : isCharge ? 1.32 : isBite ? 1.18 : 1;
   const mitigatedDamage = Math.max(1, enemy.attack * skillPower + Math.random() * 4 - targetStats.physicalDefense * 0.35);
-  elementalDamage(state, target, mitigatedDamage, isBite || isCharge ? elementColors.earth : "#ff8d75", enemy.element);
+  elementalDamage(state, target, mitigatedDamage, isBite || isCharge || isScratch ? elementColors.earth : "#ff8d75", enemy.element);
   if (isBite) state.particles.push({ x: target.x, y: target.y - 42, text: "かみつき", color: elementColors.earth, life: 0.52 });
   if (isCharge) state.particles.push({ x: target.x, y: target.y - 42, text: "突進", color: elementColors.earth, life: 0.52 });
+  if (isScratch) state.particles.push({ x: target.x, y: target.y - 42, text: "引っ掻き", color: elementColors.earth, life: 0.52 });
 }
 
 function currentFormationAnchor(state: GameState) {
@@ -1092,12 +1133,12 @@ function updateGame(state: GameState, dt: number) {
     if (distance(enemy, target) > enemy.radius + 28) {
       enemy.wanderTarget = undefined;
       const step = moveToward(enemy, target, dt);
-      enemy.animationTime = (enemy.animationTime ?? 0) + step * WOLF_ANIMATION_SPEED;
+      enemy.animationTime = (enemy.animationTime ?? 0) + step * enemyAnimationSpeed(enemy);
     } else {
-      if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * dt * WOLF_ANIMATION_SPEED;
+      if (enemy.type === "wolf" || enemy.type === "boar" || enemy.type === "bear") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * dt * enemyAnimationSpeed(enemy);
       if (enemy.cooldown <= 0) {
         performEnemyAttack(state, enemy, target);
-        enemy.cooldown = enemy.skill?.id === "bite" ? 1.1 : enemy.skill?.id === "charge" ? 1.38 : 1.28;
+        enemy.cooldown = enemy.skill?.id === "bite" ? 1.1 : enemy.skill?.id === "charge" ? 1.38 : enemy.skill?.id === "scratch" ? 1.22 : 1.28;
       }
     }
   }

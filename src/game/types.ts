@@ -97,11 +97,11 @@ export type Hero = Point & {
 };
 
 export type Enemy = Point & {
-  type: "corsair" | "duelist" | "wolf" | "boar" | "boss";
+  type: "corsair" | "duelist" | "wolf" | "boar" | "bear" | "boss";
   element: ElementId;
   facing: number;
   skill?: {
-    id: "bite" | "charge";
+    id: "bite" | "charge" | "scratch";
     name: string;
   };
   hp: number;
