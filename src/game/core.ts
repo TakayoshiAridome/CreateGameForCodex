@@ -15,6 +15,7 @@ const MOVE_TARGET_ARRIVAL_DISTANCE = 18;
 const HERO_MOVEMENT_SPEED_MULTIPLIER = 1.35;
 const STANDARD_MOVEMENT_SPEED = 248;
 const WOLF_MOVEMENT_SPEED_MULTIPLIER = 1.05;
+const WOLF_ANIMATION_SPEED = 0.032;
 
 function createGameState(): GameState {
   const heroes = structuredClone(initialHeroes);
@@ -596,14 +597,14 @@ function updateWolfRandomWalk(state: GameState, enemy: Enemy, dt: number) {
     enemy.wanderTimer = 1.4 + Math.random() * 2.4;
   }
   const step = moveToward(enemy, enemy.wanderTarget, dt);
-  enemy.animationTime = (enemy.animationTime ?? 0) + step * 0.045;
+  enemy.animationTime = (enemy.animationTime ?? 0) + step * WOLF_ANIMATION_SPEED;
 }
 
 function performEnemyAttack(state: GameState, enemy: Enemy, target: Hero) {
   faceToward(enemy, target);
   const targetStats = heroStats(target);
   const isBite = enemy.skill?.id === "bite";
-  if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * 0.045 * 0.32;
+  if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * WOLF_ANIMATION_SPEED * 0.32;
   if (isBite) {
     addSkillEffect(state, {
       x: target.x,
@@ -1059,9 +1060,9 @@ function updateGame(state: GameState, dt: number) {
     if (distance(enemy, target) > enemy.radius + 28) {
       enemy.wanderTarget = undefined;
       const step = moveToward(enemy, target, dt);
-      enemy.animationTime = (enemy.animationTime ?? 0) + step * 0.045;
+      enemy.animationTime = (enemy.animationTime ?? 0) + step * WOLF_ANIMATION_SPEED;
     } else {
-      if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * dt * 0.045;
+      if (enemy.type === "wolf") enemy.animationTime = (enemy.animationTime ?? 0) + enemy.speed * dt * WOLF_ANIMATION_SPEED;
       if (enemy.cooldown <= 0) {
         performEnemyAttack(state, enemy, target);
         enemy.cooldown = enemy.skill?.id === "bite" ? 1.1 : 1.28;

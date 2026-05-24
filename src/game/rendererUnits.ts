@@ -209,7 +209,7 @@ function normalizeWolfModel(model: THREE.Group) {
   model.updateMatrixWorld(true);
   const initialBox = new THREE.Box3().setFromObject(model);
   const initialSize = initialBox.getSize(new THREE.Vector3());
-  const scale = 1.12 / Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
+  const scale = 1.48 / Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
   model.scale.setScalar(scale);
   model.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(model);

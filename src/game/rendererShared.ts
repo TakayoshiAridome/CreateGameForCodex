@@ -4,6 +4,8 @@ export type ThreeView = {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.OrthographicCamera;
+  sun: THREE.DirectionalLight;
+  sunTarget: THREE.Object3D;
   field: THREE.Group;
   units: THREE.Group;
   effects: THREE.Group;

@@ -89,9 +89,35 @@ function createThreeView(canvas: HTMLCanvasElement): ThreeView {
   const sun = new THREE.DirectionalLight(0xffdf9a, 2.2);
   sun.position.set(-5, 10, 6);
   sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.00018;
+  const sunShadowCamera = sun.shadow.camera;
+  sunShadowCamera.near = 0.5;
+  sunShadowCamera.far = 42;
+  const sunTarget = new THREE.Object3D();
+  sunTarget.position.set(0, 0, 0);
+  sun.target = sunTarget;
   scene.add(sun);
+  scene.add(sunTarget);
 
-  return { renderer, scene, camera, field, units, effects };
+  return { renderer, scene, camera, sun, sunTarget, field, units, effects };
+}
+
+function updateShadowCamera(view: ThreeView, state: GameState) {
+  const halfW = state.view.w / WORLD_SCALE / 2 / Math.max(view.camera.zoom, 0.001);
+  const halfH = state.view.h / WORLD_SCALE / 2 / Math.max(view.camera.zoom, 0.001);
+  const radius = Math.max(CAMERA_RADIUS + 8, Math.hypot(halfW, halfH) + 8);
+  const shadowCamera = view.sun.shadow.camera;
+  shadowCamera.left = -radius;
+  shadowCamera.right = radius;
+  shadowCamera.top = radius;
+  shadowCamera.bottom = -radius;
+  shadowCamera.near = 0.5;
+  shadowCamera.far = 42;
+  shadowCamera.updateProjectionMatrix();
+  view.sunTarget.position.set(0, 0, 0);
+  view.sunTarget.updateMatrixWorld();
+  view.sun.updateMatrixWorld();
 }
 
 function resizeThreeView(view: ThreeView, state: GameState, canvas: HTMLCanvasElement, dpr: number) {
@@ -105,6 +131,7 @@ function resizeThreeView(view: ThreeView, state: GameState, canvas: HTMLCanvasEl
   view.camera.top = state.view.h / WORLD_SCALE / 2;
   view.camera.bottom = -state.view.h / WORLD_SCALE / 2;
   view.camera.updateProjectionMatrix();
+  updateShadowCamera(view, state);
   rebuildField(view, state);
 }
 
@@ -246,6 +273,7 @@ class ThreeGameRenderer {
     this.view.camera.lookAt(0, 0, 0);
     this.view.camera.zoom = this.zoom;
     this.view.camera.updateProjectionMatrix();
+    updateShadowCamera(this.view, this.state);
   }
 
   render() {

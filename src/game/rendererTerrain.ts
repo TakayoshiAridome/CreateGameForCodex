@@ -71,6 +71,7 @@ function addFieldPatch(group: THREE.Group, state: GameState, point: Point, size:
   patch.position.y = y;
   patch.rotation.x = -Math.PI / 2;
   patch.rotation.z = rotation;
+  patch.receiveShadow = true;
   group.add(patch);
 }
 
