@@ -18,6 +18,7 @@ const gameGltfAssets = [
   "/assets/cordels_combat_stance.glb",
   "/assets/cordels_run.glb",
   "/assets/cordels_attack.glb",
+  "/assets/cordelsheart_saber.glb",
   "/assets/wolf.glb",
   "/assets/boar.glb",
   "/assets/bear.glb"

@@ -17,10 +17,22 @@ const CORDELS_IDLE_MODEL_URL = "/assets/cordels_idle_02.glb";
 const CORDELS_COMBAT_STANCE_MODEL_URL = "/assets/cordels_combat_stance.glb";
 const CORDELS_RUN_MODEL_URL = "/assets/cordels_run.glb";
 const CORDELS_ATTACK_MODEL_URL = "/assets/cordels_attack.glb";
+const CORDELS_HEART_SABER_MODEL_URL = "/assets/cordelsheart_saber.glb";
+const CORDELS_RIGHT_HAND_BONE = "RightHand";
 const CORDELS_RUN_VERTICAL_OFFSET = 0.06;
 const CORDELS_ATTACK_VERTICAL_OFFSET = 0.02;
+const CORDELS_HEART_SABER_SCALE = 100;
+const CORDELS_HEART_SABER_ROTATION = new THREE.Euler(0.08, -0.12, -0.74 - Math.PI / 4);
+const CORDELS_HEART_SABER_GRIP_POINT = new THREE.Vector3(0, -0.34, 0);
+const CORDELS_HEART_SABER_HAND_OFFSET = new THREE.Vector3(-0.035, 0.085, 0);
+const CORDELS_HEART_SABER_SCALED_GRIP_OFFSET = CORDELS_HEART_SABER_GRIP_POINT.clone().multiplyScalar(-CORDELS_HEART_SABER_SCALE);
+const CORDELS_HEART_SABER_SCALED_HAND_OFFSET = CORDELS_HEART_SABER_HAND_OFFSET.clone().multiplyScalar(CORDELS_HEART_SABER_SCALE);
 const CORDELS_RUN_ANIMATION_SPEED_MULTIPLIER = 1.22;
 const CORDELS_ATTACK_ANIMATION_SPEED_MULTIPLIER = 1.45;
+const CORDELS_MATERIAL_BRIGHTNESS = 1.58;
+const CORDELS_MATERIAL_EMISSIVE_INTENSITY = 0.13;
+const CORDELS_SHADOW_LIFT = 0.3;
+const CORDELS_SATURATION = 1.92;
 
 let cordelsIdleModel: THREE.Group | null = null;
 let cordelsIdleClips: THREE.AnimationClip[] = [];
@@ -42,6 +54,9 @@ let cordelsAttackClips: THREE.AnimationClip[] = [];
 let cordelsAttackLoading = false;
 let cordelsAttackFailed = false;
 let cordelsAttackInstance: CordelsAnimationInstance | null = null;
+let cordelsHeartSaberModel: THREE.Group | null = null;
+let cordelsHeartSaberLoading = false;
+let cordelsHeartSaberFailed = false;
 
 function markSharedMaterial(material: THREE.Material) {
   material.userData.shared = true;
@@ -55,18 +70,30 @@ function markSharedMaterial(material: THREE.Material) {
   }
 
   const litMaterial = material as THREE.MeshStandardMaterial;
-  if (litMaterial.color) litMaterial.color.multiplyScalar(1.16);
+  if (litMaterial.color) litMaterial.color.multiplyScalar(CORDELS_MATERIAL_BRIGHTNESS);
   if (litMaterial.emissive) {
-    litMaterial.emissive.set(0x221006);
-    litMaterial.emissiveIntensity = 0.04;
+    litMaterial.emissive.set(0xffffff);
+    litMaterial.emissiveIntensity = CORDELS_MATERIAL_EMISSIVE_INTENSITY;
   }
-  if (typeof litMaterial.roughness === "number") litMaterial.roughness = Math.min(Math.max(litMaterial.roughness, 0.38), 0.72);
+  if (typeof litMaterial.roughness === "number") litMaterial.roughness = Math.min(Math.max(litMaterial.roughness, 0.34), 0.68);
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <map_fragment>",
+      `#include <map_fragment>
+      float cordelsLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+      diffuseColor.rgb += (1.0 - smoothstep(0.12, 0.62, cordelsLuma)) * ${CORDELS_SHADOW_LIFT.toFixed(2)};
+      float cordelsLiftedLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+      diffuseColor.rgb = mix(vec3(cordelsLiftedLuma), diffuseColor.rgb, ${CORDELS_SATURATION.toFixed(2)});`
+    );
+  };
+  material.customProgramCacheKey = () => `cordels-shadow-lift-${CORDELS_SHADOW_LIFT}-saturation-${CORDELS_SATURATION}`;
+  material.needsUpdate = true;
 }
 
 function markSharedObject(object: THREE.Object3D) {
   object.traverse((child) => {
     child.castShadow = true;
-    child.receiveShadow = true;
+    child.receiveShadow = false;
     const mesh = child as THREE.Mesh;
     if (!mesh.isMesh) return;
     if (mesh.geometry) mesh.geometry.userData.shared = true;
@@ -90,6 +117,18 @@ function normalizeCordelsModel(model: THREE.Group) {
   const box = new THREE.Box3().setFromObject(model);
   const center = box.getCenter(new THREE.Vector3());
   model.position.set(-center.x, -box.min.y - 0.28, -center.z);
+}
+
+function normalizeCordelsHeartSaber(model: THREE.Group) {
+  model.updateMatrixWorld(true);
+  const initialBox = new THREE.Box3().setFromObject(model);
+  const initialSize = initialBox.getSize(new THREE.Vector3());
+  const scale = 0.95 / Math.max(initialSize.x, initialSize.y, initialSize.z, 0.001);
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.set(-center.x, -center.y, -center.z);
 }
 
 function removeCordelsAttackRootMotion(clips: THREE.AnimationClip[]) {
@@ -173,6 +212,24 @@ function loadCordelsAttackModel() {
       cordelsAttackLoading = false;
     });
   return cordelsAttackModel;
+}
+
+function loadCordelsHeartSaberModel() {
+  if (cordelsHeartSaberModel || cordelsHeartSaberLoading || cordelsHeartSaberFailed) return cordelsHeartSaberModel;
+  cordelsHeartSaberLoading = true;
+  loadCachedGltf(CORDELS_HEART_SABER_MODEL_URL)
+    .then((gltf) => {
+      cordelsHeartSaberModel = gltf.scene;
+      normalizeCordelsHeartSaber(cordelsHeartSaberModel);
+      markSharedObject(cordelsHeartSaberModel);
+      cordelsHeartSaberLoading = false;
+    })
+    .catch((error) => {
+      console.warn("Failed to load Cordels Heart Saber GLB model.", error);
+      cordelsHeartSaberFailed = true;
+      cordelsHeartSaberLoading = false;
+    });
+  return cordelsHeartSaberModel;
 }
 
 function createCordelsAnimatedInstance(
@@ -263,11 +320,37 @@ function createCordelsAttackInstance(hero: Hero) {
   );
 }
 
+function createCordelsHeartSaberInstance() {
+  const source = loadCordelsHeartSaberModel();
+  if (!source) return null;
+  const weapon = cloneSkeleton(source) as THREE.Group;
+  weapon.name = "CordelsHeartSaberMesh";
+  weapon.scale.multiplyScalar(CORDELS_HEART_SABER_SCALE);
+  weapon.position.copy(CORDELS_HEART_SABER_SCALED_GRIP_OFFSET);
+  return weapon;
+}
+
+function attachCordelsHeartSaber(gltfModel: THREE.Group) {
+  const rightHand = gltfModel.getObjectByName(CORDELS_RIGHT_HAND_BONE);
+  if (!rightHand) return;
+  const existing = rightHand.getObjectByName("CordelsHeartSaber");
+  const holder = existing ?? new THREE.Group();
+  holder.name = "CordelsHeartSaber";
+  holder.position.copy(CORDELS_HEART_SABER_SCALED_HAND_OFFSET);
+  holder.rotation.copy(CORDELS_HEART_SABER_ROTATION);
+  if (existing) return;
+  const weapon = createCordelsHeartSaberInstance();
+  if (!weapon) return;
+  holder.add(weapon);
+  rightHand.add(holder);
+}
+
 function preloadCordelsModels() {
   loadCordelsIdleModel();
   loadCordelsCombatStanceModel();
   loadCordelsRunModel();
   loadCordelsAttackModel();
+  loadCordelsHeartSaberModel();
 }
 
 function cordelsSkillPulse(hero: Hero) {
@@ -305,6 +388,7 @@ function createCordelsMesh(hero: Hero, state: GameState, index: number) {
     model.rotation.y += 0.18 * skillPulse;
     model.position.z += 0.06 * skillPulse;
   }
+  attachCordelsHeartSaber(gltfModel);
   model.add(gltfModel);
   group.add(model);
 

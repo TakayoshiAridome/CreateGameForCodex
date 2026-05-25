@@ -39,11 +39,11 @@ function createGameState(): GameState {
     reserveHeroes[incomingIndex] = { ...outgoing, x: 0, y: 0, moving: false, attacking: false };
   }
 
-  return {
+  const state: GameState = {
     view: { w: 1280, h: 720 },
     selected: 0,
     paused: false,
-    area: "spiritTreeForest01",
+    area: "aureleaf",
     formation: 0,
     score: 0,
     gold: 220,
@@ -67,9 +67,11 @@ function createGameState(): GameState {
     consumables: [],
     enemies: [],
     particles: [],
-    logs: ["アルカディア開拓団、出撃。"],
-    status: "クリックで移動、1-3で家門メンバーを選択。三人を同時に動かして、迫る敵を迎撃してください。"
+    logs: ["アウレリーフ中央広場から出撃準備。"],
+    status: "アウレリーフ中央から開始。クリック/WASDで移動、1-4で家門メンバーを選択してください。"
   };
+  placePartyAtFormationAnchor(state, { x: playableWidth(state) / 2, y: playableBottom(state) / 2 });
+  return state;
 }
 
 function equipmentBonus(hero: Hero): Required<EquipmentBonus> {
@@ -304,9 +306,22 @@ function movePartyToAreaEntry(state: GameState, fromArea: AreaId) {
           ? { x: 350, y: entryY }
         : currentFormationAnchor(state);
   for (let i = 0; i < state.heroes.length; i += 1) {
-    const slot = formationSlotForHero(state, i);
-    state.heroes[i].x = clamp(entryAnchor.x + slot.x, 80, playableWidth(state) - 160);
-    state.heroes[i].y = clamp(entryAnchor.y + slot.y, 96, playableBottom(state));
+    placeHeroAtFormationSlot(state, i, entryAnchor);
+  }
+}
+
+function placeHeroAtFormationSlot(state: GameState, heroIndex: number, anchor: Point) {
+  const slot = formationSlotForHero(state, heroIndex);
+  state.heroes[heroIndex].x = clamp(anchor.x + slot.x, 80, playableWidth(state) - 160);
+  state.heroes[heroIndex].y = clamp(anchor.y + slot.y, 96, playableBottom(state));
+  state.heroes[heroIndex].moving = false;
+  state.heroes[heroIndex].attacking = false;
+}
+
+function placePartyAtFormationAnchor(state: GameState, anchor: Point) {
+  ensureFormationIndex(state);
+  for (let i = 0; i < state.heroes.length; i += 1) {
+    placeHeroAtFormationSlot(state, i, anchor);
   }
 }
 
