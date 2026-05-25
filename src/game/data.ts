@@ -57,8 +57,8 @@ export const areas: Record<AreaId, AreaDefinition> = {
   },
   spiritTreeForest01: {
     id: "spiritTreeForest01",
-    name: "精霊樹の森01",
-    description: "広大な探索地帯。起伏のある地形で敵がランダムに出現します。",
+    name: "世界樹の森01",
+    description: "世界樹の根元に広がる広大な探索地帯。起伏のある地形で敵がランダムに出現します。",
     spawnRate: 1,
     bossInterval: 28,
     enemyScale: 1
@@ -350,36 +350,10 @@ export const initialHeroes: Hero[] = [
 ];
 
 export function createReserveHeroes(): Hero[] {
-  const reserves = structuredClone([initialHeroes[0], initialHeroes[1], initialHeroes[2], initialHeroes[0], initialHeroes[0]]);
+  const reserves = structuredClone([initialHeroes[1], initialHeroes[2], initialHeroes[0], initialHeroes[0]]);
 
   reserves[0] = {
     ...reserves[0],
-    name: "Leona",
-    role: "ファイター",
-    color: "#8a4f52",
-    trim: "#ffd7a2",
-    hair: "#3e2c2e",
-    accent: "#f4e2c0",
-    element: "earth",
-    hp: 186,
-    maxHp: 186,
-    mp: 54,
-    maxMp: 76,
-    str: 16,
-    vit: 16,
-    agi: 9,
-    int: 6,
-    dex: 9,
-    men: 9,
-    attack: 22,
-    speed: 152,
-    x: 0,
-    y: 0,
-    skillCooldowns: emptySkillCooldowns()
-  };
-
-  reserves[1] = {
-    ...reserves[1],
     name: "Noel",
     role: "ガンナー",
     color: "#445d79",
@@ -405,8 +379,8 @@ export function createReserveHeroes(): Hero[] {
     skillCooldowns: emptySkillCooldowns()
   };
 
-  reserves[2] = {
-    ...reserves[2],
+  reserves[1] = {
+    ...reserves[1],
     name: "Fiona",
     role: "ウィザード",
     color: "#5f4b91",
@@ -432,8 +406,8 @@ export function createReserveHeroes(): Hero[] {
     skillCooldowns: emptySkillCooldowns()
   };
 
-  reserves[3] = {
-    ...reserves[3],
+  reserves[2] = {
+    ...reserves[2],
     name: "ルシェリア",
     role: "ファイター",
     color: "#171d31",
@@ -473,8 +447,8 @@ export function createReserveHeroes(): Hero[] {
     )
   };
 
-  reserves[4] = {
-    ...reserves[4],
+  reserves[3] = {
+    ...reserves[3],
     name: "コーデルス",
     role: "ファイター",
     color: "#5f2c22",
@@ -494,7 +468,7 @@ export function createReserveHeroes(): Hero[] {
     men: 8,
     attack: 26,
     range: 52,
-    speed: 166,
+    speed: 173,
     x: 0,
     y: 0,
     skills: [

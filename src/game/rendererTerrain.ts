@@ -1,7 +1,371 @@
 import * as THREE from "three";
 import { playableBottom, playableWidth, warpPointsForArea, type GameState, type Point, type WarpPoint } from "./core";
 import { areaLocal, WORLD_SCALE } from "./rendererCamera";
-import { clearGroup, colorKey, createTextSprite, sharedBasicMaterial, sharedGeometry, sharedStandardMaterial, type ThreeView } from "./rendererShared";
+import { loadCachedGltf } from "./rendererGltfCache";
+import { clearGroup, colorKey, createTextSprite, sharedBasicMaterial, sharedGeometry, sharedStandardMaterial, sharedTextureKeys, type ThreeView } from "./rendererShared";
+
+const WORLD_TREE_FOREST_MODEL_URL = "/assets/spiritTreeForest01.glb";
+const GRASS01_MODEL_URL = "/assets/grass01.glb";
+const GRASS02_MODEL_URL = "/assets/grass02.glb";
+const GRASS03_MODEL_URL = "/assets/grass03.glb";
+const GRASS04_MODEL_URL = "/assets/grass04.glb";
+const WORLD_TREE_GRASS01_COUNT = 150;
+const WORLD_TREE_GRASS02_COUNT = 128;
+const WORLD_TREE_GRASS03_COUNT = 112;
+const WORLD_TREE_GRASS04_COUNT = 104;
+
+let fieldBuildId = 0;
+let worldTreeForestModel: THREE.Group | null = null;
+let worldTreeForestFailed = false;
+let grass01Model: THREE.Group | null = null;
+let grass01Failed = false;
+let grass02Model: THREE.Group | null = null;
+let grass02Failed = false;
+let grass03Model: THREE.Group | null = null;
+let grass03Failed = false;
+let grass04Model: THREE.Group | null = null;
+let grass04Failed = false;
+
+function markSharedTerrainObject(object: THREE.Object3D, brightness = 1.18, emissiveIntensity = 0.08) {
+  object.traverse((child) => {
+    child.castShadow = true;
+    child.receiveShadow = true;
+    const mesh = child as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    if (mesh.geometry) mesh.geometry.userData.shared = true;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) {
+      if (!material) continue;
+      material.userData.shared = true;
+      material.side = THREE.DoubleSide;
+      const texturedMaterial = material as THREE.Material & Partial<Record<(typeof sharedTextureKeys)[number], THREE.Texture>>;
+      const litMaterial = material as THREE.MeshStandardMaterial;
+      if (litMaterial.color) litMaterial.color.multiplyScalar(brightness);
+      if (litMaterial.emissive) {
+        litMaterial.emissive.set(0x27381c);
+        litMaterial.emissiveIntensity = emissiveIntensity;
+      }
+      for (const key of sharedTextureKeys) {
+        const texture = texturedMaterial[key];
+        if (!texture) continue;
+        texture.userData.shared = true;
+        if (key === "map" || key === "emissiveMap") texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+      }
+    }
+  });
+}
+
+function createWorldTreeForestInstance(width: number, depth: number) {
+  if (!worldTreeForestModel) return null;
+  const model = worldTreeForestModel.clone(true);
+  model.name = "worldTreeForest01";
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const scale = Math.min((width * 0.92) / Math.max(size.x, 0.001), (depth * 0.92) / Math.max(size.z, 0.001));
+  const center = box.getCenter(new THREE.Vector3());
+  const horizontalScale = Number.isFinite(scale) ? scale : 1;
+  const verticalScale = horizontalScale * 0.045;
+  model.scale.set(horizontalScale, verticalScale, horizontalScale);
+  model.position.set(-center.x * horizontalScale, -box.min.y * verticalScale + 0.006, -center.z * horizontalScale);
+  model.traverse((child) => {
+    child.castShadow = true;
+    child.receiveShadow = true;
+  });
+  return model;
+}
+
+function markSharedGrassObject(object: THREE.Object3D) {
+  markSharedTerrainObject(object, 0.96, 0.045);
+}
+
+function seededUnit(seed: number) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function grassScatterPoint(index: number, state: GameState, offset: number) {
+  const width = playableWidth(state);
+  const bottom = playableBottom(state);
+  const seed = index + offset * 13;
+  const clusterCenters = [
+    { x: width * 0.18, y: bottom * 0.24, rx: width * 0.08, ry: bottom * 0.055 },
+    { x: width * 0.34, y: bottom * 0.72, rx: width * 0.11, ry: bottom * 0.075 },
+    { x: width * 0.58, y: bottom * 0.36, rx: width * 0.1, ry: bottom * 0.07 },
+    { x: width * 0.76, y: bottom * 0.78, rx: width * 0.09, ry: bottom * 0.06 },
+    { x: width * 0.84, y: bottom * 0.28, rx: width * 0.075, ry: bottom * 0.055 }
+  ];
+  if (seededUnit(seed) < 0.72) {
+    const cluster = clusterCenters[Math.floor(seededUnit(seed + 17) * clusterCenters.length)];
+    const angle = seededUnit(seed + 31) * Math.PI * 2;
+    const radius = Math.sqrt(seededUnit(seed + 43));
+    const x = cluster.x + Math.cos(angle) * cluster.rx * radius;
+    const y = cluster.y + Math.sin(angle) * cluster.ry * radius;
+    return {
+      x: Math.max(140, Math.min(width - 140, x)),
+      y: Math.max(160, Math.min(bottom - 160, y))
+    };
+  }
+  const x = 170 + (((index + offset) * 487) % Math.max(420, width - 340));
+  const y = 180 + (((index + offset) * 313 + Math.floor((index + offset) / 5) * 173) % Math.max(420, bottom - 360));
+  return { x, y };
+}
+
+function createGrassInstance(
+  model: THREE.Group | null,
+  index: number,
+  state: GameState,
+  options: { name: string; offset: number; baseScale: number; scaleStep: number; heightOffset: number; rotationStep: number }
+) {
+  if (!model) return null;
+  const grass = model.clone(true);
+  grass.name = `${options.name}-${index}`;
+  grass.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(grass);
+  const size = box.getSize(new THREE.Vector3());
+  const maxSize = Math.max(size.x, size.z, 0.001);
+  const point = grassScatterPoint(index, state, options.offset);
+  const scale = (options.baseScale + (index % 5) * options.scaleStep) / maxSize;
+  const center = box.getCenter(new THREE.Vector3());
+  grass.scale.setScalar(scale);
+  grass.position.copy(areaLocal(point, state));
+  grass.position.x -= center.x * scale;
+  grass.position.y = -box.min.y * scale + options.heightOffset;
+  grass.position.z -= center.z * scale;
+  grass.rotation.y = ((index * options.rotationStep) % 360) * (Math.PI / 180);
+  grass.traverse((child) => {
+    child.castShadow = false;
+    child.receiveShadow = true;
+  });
+  return grass;
+}
+
+function createGrass01Instance(index: number, state: GameState) {
+  return createGrassInstance(grass01Model, index, state, {
+    name: "grass01",
+    offset: 0,
+    baseScale: 0.84,
+    scaleStep: 0.11,
+    heightOffset: 0.018,
+    rotationStep: 47
+  });
+}
+
+function createGrass02Instance(index: number, state: GameState) {
+  return createGrassInstance(grass02Model, index, state, {
+    name: "grass02",
+    offset: 23,
+    baseScale: 0.52,
+    scaleStep: 0.065,
+    heightOffset: 0.02,
+    rotationStep: 61
+  });
+}
+
+function createGrass03Instance(index: number, state: GameState) {
+  return createGrassInstance(grass03Model, index, state, {
+    name: "grass03",
+    offset: 47,
+    baseScale: 1.15,
+    scaleStep: 0.145,
+    heightOffset: 0.022,
+    rotationStep: 73
+  });
+}
+
+function createGrass04Instance(index: number, state: GameState) {
+  return createGrassInstance(grass04Model, index, state, {
+    name: "grass04",
+    offset: 71,
+    baseScale: 0.82,
+    scaleStep: 0.105,
+    heightOffset: 0.024,
+    rotationStep: 89
+  });
+}
+
+function createGrass01Scatter(state: GameState) {
+  const group = new THREE.Group();
+  group.name = "grass01Scatter";
+  for (let i = 0; i < WORLD_TREE_GRASS01_COUNT; i += 1) {
+    const grass = createGrass01Instance(i, state);
+    if (grass) group.add(grass);
+  }
+  return group;
+}
+
+function createGrass02Scatter(state: GameState) {
+  const group = new THREE.Group();
+  group.name = "grass02Scatter";
+  for (let i = 0; i < WORLD_TREE_GRASS02_COUNT; i += 1) {
+    const grass = createGrass02Instance(i, state);
+    if (grass) group.add(grass);
+  }
+  return group;
+}
+
+function createGrass03Scatter(state: GameState) {
+  const group = new THREE.Group();
+  group.name = "grass03Scatter";
+  for (let i = 0; i < WORLD_TREE_GRASS03_COUNT; i += 1) {
+    const grass = createGrass03Instance(i, state);
+    if (grass) group.add(grass);
+  }
+  return group;
+}
+
+function createGrass04Scatter(state: GameState) {
+  const group = new THREE.Group();
+  group.name = "grass04Scatter";
+  for (let i = 0; i < WORLD_TREE_GRASS04_COUNT; i += 1) {
+    const grass = createGrass04Instance(i, state);
+    if (grass) group.add(grass);
+  }
+  return group;
+}
+
+function addGrass01Scatter(group: THREE.Group, state: GameState, buildId: number) {
+  const addLoadedGrass = () => {
+    if (group.userData.fieldBuildId !== buildId || state.area !== "spiritTreeForest01") return;
+    const oldGrass = group.getObjectByName("grass01Scatter");
+    if (oldGrass) group.remove(oldGrass);
+    if (grass01Model) group.add(createGrass01Scatter(state));
+  };
+
+  if (grass01Model) {
+    addLoadedGrass();
+    return true;
+  }
+  if (grass01Failed) return false;
+
+  loadCachedGltf(GRASS01_MODEL_URL)
+    .then((gltf) => {
+      grass01Model = gltf.scene;
+      markSharedGrassObject(grass01Model);
+      addLoadedGrass();
+    })
+    .catch((error) => {
+      console.warn("Failed to load grass01 GLB terrain object.", error);
+      grass01Failed = true;
+    });
+  return false;
+}
+
+function addGrass02Scatter(group: THREE.Group, state: GameState, buildId: number) {
+  const addLoadedGrass = () => {
+    if (group.userData.fieldBuildId !== buildId || state.area !== "spiritTreeForest01") return;
+    const oldGrass = group.getObjectByName("grass02Scatter");
+    if (oldGrass) group.remove(oldGrass);
+    if (grass02Model) group.add(createGrass02Scatter(state));
+  };
+
+  if (grass02Model) {
+    addLoadedGrass();
+    return true;
+  }
+  if (grass02Failed) return false;
+
+  loadCachedGltf(GRASS02_MODEL_URL)
+    .then((gltf) => {
+      grass02Model = gltf.scene;
+      markSharedGrassObject(grass02Model);
+      addLoadedGrass();
+    })
+    .catch((error) => {
+      console.warn("Failed to load grass02 GLB terrain object.", error);
+      grass02Failed = true;
+    });
+  return false;
+}
+
+function addGrass03Scatter(group: THREE.Group, state: GameState, buildId: number) {
+  const addLoadedGrass = () => {
+    if (group.userData.fieldBuildId !== buildId || state.area !== "spiritTreeForest01") return;
+    const oldGrass = group.getObjectByName("grass03Scatter");
+    if (oldGrass) group.remove(oldGrass);
+    if (grass03Model) group.add(createGrass03Scatter(state));
+  };
+
+  if (grass03Model) {
+    addLoadedGrass();
+    return true;
+  }
+  if (grass03Failed) return false;
+
+  loadCachedGltf(GRASS03_MODEL_URL)
+    .then((gltf) => {
+      grass03Model = gltf.scene;
+      markSharedGrassObject(grass03Model);
+      addLoadedGrass();
+    })
+    .catch((error) => {
+      console.warn("Failed to load grass03 GLB terrain object.", error);
+      grass03Failed = true;
+    });
+  return false;
+}
+
+function addGrass04Scatter(group: THREE.Group, state: GameState, buildId: number) {
+  const addLoadedGrass = () => {
+    if (group.userData.fieldBuildId !== buildId || state.area !== "spiritTreeForest01") return;
+    const oldGrass = group.getObjectByName("grass04Scatter");
+    if (oldGrass) group.remove(oldGrass);
+    if (grass04Model) group.add(createGrass04Scatter(state));
+  };
+
+  if (grass04Model) {
+    addLoadedGrass();
+    return true;
+  }
+  if (grass04Failed) return false;
+
+  loadCachedGltf(GRASS04_MODEL_URL)
+    .then((gltf) => {
+      grass04Model = gltf.scene;
+      markSharedGrassObject(grass04Model);
+      addLoadedGrass();
+    })
+    .catch((error) => {
+      console.warn("Failed to load grass04 GLB terrain object.", error);
+      grass04Failed = true;
+    });
+  return false;
+}
+
+function addWorldTreeForestModel(group: THREE.Group, state: GameState, width: number, depth: number, buildId: number) {
+  const addLoadedModel = () => {
+    if (group.userData.fieldBuildId !== buildId || state.area !== "spiritTreeForest01") return;
+    const oldModel = group.getObjectByName("worldTreeForest01");
+    if (oldModel) group.remove(oldModel);
+    const fallback = group.getObjectByName("worldTreeForestFallback");
+    if (fallback) group.remove(fallback);
+    const grid = group.getObjectByName("areaGrid");
+    if (grid) group.remove(grid);
+    const loading = group.getObjectByName("worldTreeForestLoading");
+    if (loading) group.remove(loading);
+    const model = createWorldTreeForestInstance(width, depth);
+    if (model) group.add(model);
+  };
+
+  if (worldTreeForestModel) {
+    addLoadedModel();
+    return true;
+  }
+  if (worldTreeForestFailed) return false;
+
+  loadCachedGltf(WORLD_TREE_FOREST_MODEL_URL)
+    .then((gltf) => {
+      worldTreeForestModel = gltf.scene;
+      markSharedTerrainObject(worldTreeForestModel, 1.72, 0.16);
+      addLoadedModel();
+    })
+    .catch((error) => {
+      console.warn("Failed to load world tree forest GLB terrain.", error);
+      worldTreeForestFailed = true;
+    });
+  return false;
+}
 
 function createWarpPointMesh(warpPoint: WarpPoint, state: GameState) {
   const group = new THREE.Group();
@@ -200,10 +564,13 @@ function addExpandedDungeonTerrain(group: THREE.Group, state: GameState) {
 
 function rebuildField(view: ThreeView, state: GameState) {
   clearGroup(view.field);
+  fieldBuildId += 1;
+  view.field.userData.fieldBuildId = fieldBuildId;
   const worldWidth = playableWidth(state);
   const worldDepth = playableBottom(state);
   const width = worldWidth / WORLD_SCALE;
   const depth = worldDepth / WORLD_SCALE;
+  const isWorldTreeForest = state.area === "spiritTreeForest01";
   const groundColor = state.area === "aureleaf" ? 0x6d6f59 : state.area === "spiritRootCave01" ? 0x393446 : 0x66724a;
   const gridColor = state.area === "aureleaf" ? 0xd8c799 : state.area === "spiritRootCave01" ? 0x886ab0 : 0xb7a56f;
   const gridFloorColor = state.area === "aureleaf" ? 0x60664b : state.area === "spiritRootCave01" ? 0x272233 : 0x4f5c3d;
@@ -211,13 +578,17 @@ function rebuildField(view: ThreeView, state: GameState) {
     new THREE.PlaneGeometry(width, depth),
     new THREE.MeshStandardMaterial({ color: groundColor, roughness: 0.92 })
   );
+  ground.name = "areaGround";
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   view.field.add(ground);
 
-  const grid = new THREE.GridHelper(Math.max(width, depth), state.area === "spiritTreeForest01" ? 42 : 18, gridColor, gridFloorColor);
-  grid.position.y = 0.012;
-  view.field.add(grid);
+  if (!isWorldTreeForest || worldTreeForestFailed) {
+    const grid = new THREE.GridHelper(Math.max(width, depth), isWorldTreeForest ? 42 : 18, gridColor, gridFloorColor);
+    grid.name = "areaGrid";
+    grid.position.y = 0.012;
+    view.field.add(grid);
+  }
 
   if (state.area === "aureleaf") {
     addExpandedTownTerrain(view.field, state);
@@ -274,8 +645,26 @@ function rebuildField(view: ThreeView, state: GameState) {
     return;
   }
 
-  if (state.area === "spiritTreeForest01") {
-    addExpandedFieldTerrain(view.field, state);
+  if (isWorldTreeForest) {
+    const modelReady = addWorldTreeForestModel(view.field, state, width, depth, fieldBuildId);
+    addGrass01Scatter(view.field, state, fieldBuildId);
+    addGrass02Scatter(view.field, state, fieldBuildId);
+    addGrass03Scatter(view.field, state, fieldBuildId);
+    addGrass04Scatter(view.field, state, fieldBuildId);
+    if (!modelReady && worldTreeForestFailed) {
+      const fallback = new THREE.Group();
+      fallback.name = "worldTreeForestFallback";
+      view.field.add(fallback);
+      addExpandedFieldTerrain(fallback, state);
+    } else if (!modelReady) {
+      const loading = createTextSprite("世界樹の森01 読み込み中", "#d9ffd0", 0.8);
+      loading.name = "worldTreeForestLoading";
+      loading.position.set(0, 0.9, 0);
+      loading.scale.set(2.2, 0.62, 1);
+      view.field.add(loading);
+    }
+    for (const warpPoint of warpPointsForArea(state)) view.field.add(createWarpPointMesh(warpPoint, state));
+    return;
   }
 
   if (state.area === "spiritRootCave01") {

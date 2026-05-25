@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { clamp, heroStats, type GameState, type Hero } from "./core";
 import { toWorld } from "./rendererCamera";
+import { createCordelsMesh } from "./rendererCordels";
 import { addHealthBar } from "./rendererHealth";
 import { createLuceriaMesh } from "./rendererLuceria";
 import { sharedBasicMaterial, sharedGeometry, sharedStandardMaterial } from "./rendererShared";
@@ -29,6 +30,10 @@ function basicAttackPulse(hero: Hero) {
 
 function createHeroMesh(hero: Hero, state: GameState, index: number) {
   if (hero.name === "ルシェリア") return createLuceriaMesh(hero, state, index);
+  if (hero.name === "コーデルス") {
+    const cordelsModel = createCordelsMesh(hero, state, index);
+    if (cordelsModel) return cordelsModel;
+  }
 
   const group = new THREE.Group();
   const pos = toWorld(hero, state);

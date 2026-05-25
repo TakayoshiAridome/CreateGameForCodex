@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { elementColors, type Enemy, type GameState } from "./core";
 import { toWorld } from "./rendererCamera";
+import { loadCachedGltf } from "./rendererGltfCache";
 import { addHealthBar } from "./rendererHealth";
 import { sharedBasicMaterial, sharedGeometry, sharedStandardMaterial, sharedTextureKeys } from "./rendererShared";
 
@@ -88,21 +88,18 @@ function loadEnemyGltfModel(
   normalize: (scene: THREE.Group) => void
 ) {
   setLoading(true);
-  new GLTFLoader().load(
-    url,
-    (gltf) => {
+  loadCachedGltf(url)
+    .then((gltf) => {
       normalize(gltf.scene);
       markGenericSharedObject(gltf.scene);
       assign(gltf.scene, gltf.animations);
       setLoading(false);
-    },
-    undefined,
-    (error) => {
+    })
+    .catch((error) => {
       console.warn(`Failed to load ${label} GLB model.`, error);
       setFailed();
       setLoading(false);
-    }
-  );
+    });
 }
 
 function loadWolfGltfModel() {

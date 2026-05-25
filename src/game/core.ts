@@ -14,6 +14,10 @@ const MIN_ATTACK_MOTION_DURATION = 0.28;
 const MIN_LUCERIA_ATTACK_MOTION_DURATION = 0.46;
 const MOVE_TARGET_ARRIVAL_DISTANCE = 18;
 const HERO_MOVEMENT_SPEED_MULTIPLIER = 1.35;
+const HERO_SHARED_BASE_MOVEMENT_SPEED = 173;
+const HERO_SHARED_MOVEMENT_SPEED = Math.round(HERO_SHARED_BASE_MOVEMENT_SPEED * HERO_MOVEMENT_SPEED_MULTIPLIER);
+export const HERO_RUN_CYCLE_STEP_SCALE = 0.055;
+export const HERO_GLB_RUN_ANIMATION_TIME_SCALE = 0.075;
 const STANDARD_MOVEMENT_SPEED = 248;
 const WOLF_MOVEMENT_SPEED_MULTIPLIER = 1.05;
 const BOAR_MOVEMENT_SPEED_MULTIPLIER = 1.02;
@@ -104,7 +108,7 @@ function heroStats(hero: Hero) {
     maxHp: hero.maxHp + bonus.maxHp + attributeHp + levelBonus * 18,
     maxMp: hero.maxMp + bonus.maxMp + attributeMp + levelBonus * 7,
     range: hero.range + bonus.range + Math.floor(levelBonus / 3) * 4,
-    speed: Math.round((hero.speed + bonus.speed) * HERO_MOVEMENT_SPEED_MULTIPLIER),
+    speed: HERO_SHARED_MOVEMENT_SPEED,
     physicalAttack,
     carryWeight,
     physicalDefense,
@@ -202,14 +206,14 @@ function combatBottom(state: GameState) {
 function playableWidth(state: GameState) {
   if (state.area === "aureleaf") return Math.max(1900, state.view.w * 2.05);
   if (state.area === "spiritRootCave01") return Math.max(2300, state.view.w * 2.45);
-  if (state.area === "spiritTreeForest01") return Math.max(2400, state.view.w * 2.65);
+  if (state.area === "spiritTreeForest01") return 4092;
   return state.view.w;
 }
 
 function playableBottom(state: GameState) {
   if (state.area === "aureleaf") return Math.max(1120, combatBottom(state) * 1.9);
   if (state.area === "spiritRootCave01") return Math.max(1420, combatBottom(state) * 2.35);
-  if (state.area === "spiritTreeForest01") return Math.max(1280, combatBottom(state) * 2.35);
+  if (state.area === "spiritTreeForest01") return 4092;
   return combatBottom(state);
 }
 
@@ -222,7 +226,7 @@ function currentArea(state: GameState) {
 }
 
 function warpPointForArea(state: GameState): WarpPoint | null {
-  if (state.area === "aureleaf") return { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" };
+  if (state.area === "aureleaf") return { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" };
   if (state.area === "spiritTreeForest01") return { x: 210, y: playableBottom(state) - 190, target: "aureleaf", label: "アウレリーフへ" };
   return null;
 }
@@ -235,7 +239,7 @@ function warpPointsForArea(state: GameState): WarpPoint[] {
       { x: playableWidth(state) - 240, y: 210, target: "spiritRootCave01", label: "精霊樹の根洞1Fへ" }
     ];
   }
-  if (state.area === "spiritRootCave01") return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" }];
+  if (state.area === "spiritRootCave01") return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" }];
   return primary ? [primary] : [];
 }
 
@@ -877,7 +881,7 @@ function moveHeroesToFormationAnchor(state: GameState, anchor: Point, dt: number
       driftFacing = Math.atan2(drift.x, drift.y);
       hero.facing = driftFacing;
       hero.moving = true;
-      hero.runTime = (hero.runTime ?? 0) + step * 0.055;
+      hero.runTime = (hero.runTime ?? 0) + step * HERO_RUN_CYCLE_STEP_SCALE;
     }
     moveToward(hero, formationSlotPoint(state, anchor, index), dt, multiplier, heroStats(hero).speed);
     if (driftFacing !== null) hero.facing = driftFacing;

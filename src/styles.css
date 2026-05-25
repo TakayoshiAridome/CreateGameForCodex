@@ -58,7 +58,8 @@ canvas {
   cursor: crosshair;
 }
 
-.title-screen {
+.title-screen,
+.loading-screen {
   position: absolute;
   inset: 0;
   z-index: 8;
@@ -73,6 +74,14 @@ canvas {
     radial-gradient(circle at 50% 42%, rgba(232, 191, 112, 0.22), transparent 34%);
 }
 
+.loading-screen {
+  z-index: 10;
+  background:
+    linear-gradient(180deg, rgba(14, 16, 24, 0.62), rgba(12, 12, 18, 0.94)),
+    radial-gradient(circle at 50% 42%, rgba(94, 174, 158, 0.18), transparent 36%),
+    #11131d;
+}
+
 .title-mark {
   width: 78px;
   height: 78px;
@@ -85,8 +94,10 @@ canvas {
   font-size: 46px;
 }
 
-.title-screen h1 {
+.title-screen h1,
+.loading-screen h1 {
   font-size: 64px;
+  margin: 0;
 }
 
 .title-copy {
@@ -113,6 +124,33 @@ canvas {
 
 .title-actions span {
   color: #cdbb9d;
+  font-size: 13px;
+}
+
+.loading-bar {
+  width: min(440px, 78vw);
+  height: 12px;
+  border: 1px solid rgba(255, 209, 118, 0.58);
+  background: rgba(10, 12, 18, 0.72);
+  overflow: hidden;
+}
+
+.loading-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6ed7c4, #ffd176);
+  transition: width 0.18s ease;
+}
+
+.loading-count {
+  margin: 0;
+  color: #d9c5a4;
+  font-size: 13px;
+}
+
+.loading-warning {
+  margin: 0;
+  color: #ffd176;
   font-size: 13px;
 }
 

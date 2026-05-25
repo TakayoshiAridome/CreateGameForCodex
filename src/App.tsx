@@ -11,7 +11,9 @@ import {
   equipmentCatalog,
   formations,
   heroStats,
+  getGltfCacheSnapshot,
   isMovementKey,
+  preloadGameGltfAssets,
   shopOrder,
   shops,
   skillKeys,
@@ -24,7 +26,7 @@ import {
   type SkillKey
 } from "./game";
 
-type Screen = "title" | "barracks" | "game";
+type Screen = "title" | "loading" | "barracks" | "game";
 
 function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -35,13 +37,49 @@ function App() {
   const engineRef = useRef<GameEngine>(new GameEngine());
   const [hud, setHud] = useState<HudState>(() => engineRef.current.snapshot());
   const [screen, setScreen] = useState<Screen>("title");
+  const [loadingState, setLoadingState] = useState(() => getGltfCacheSnapshot());
   const [selectedBarracksSlot, setSelectedBarracksSlot] = useState(0);
   const started = screen === "game";
   const startedRef = useRef(started);
+  const loadingRef = useRef(false);
 
   useEffect(() => {
     startedRef.current = started;
   }, [started]);
+
+  const beginGame = () => {
+    if (loadingState.ready) {
+      setScreen("game");
+      return;
+    }
+    setScreen("loading");
+  };
+
+  useEffect(() => {
+    if (screen !== "loading" || loadingRef.current) return;
+    let cancelled = false;
+    loadingRef.current = true;
+    setLoadingState(getGltfCacheSnapshot());
+    const timer = window.setInterval(() => {
+      setLoadingState(getGltfCacheSnapshot());
+    }, 120);
+    preloadGameGltfAssets()
+      .then((snapshot) => {
+        if (cancelled) return;
+        setLoadingState(snapshot);
+        window.setTimeout(() => {
+          if (!cancelled) setScreen("game");
+        }, 180);
+      })
+      .finally(() => {
+        loadingRef.current = false;
+        window.clearInterval(timer);
+      });
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [screen]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -100,9 +138,9 @@ function App() {
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!started) {
-        if (event.key === "Enter" || event.code === "Space") {
+        if (screen !== "loading" && (event.key === "Enter" || event.code === "Space")) {
           event.preventDefault();
-          setScreen("game");
+          beginGame();
         }
         if (event.key === "Escape") {
           event.preventDefault();
@@ -305,6 +343,8 @@ function App() {
 
   const selectedHero = hud.heroes[hud.selected];
   const selectedStats = heroStats(selectedHero);
+  const loadedAssets = loadingState.loaded + loadingState.failed;
+  const loadingProgress = loadingState.total > 0 ? Math.round((loadedAssets / loadingState.total) * 100) : 100;
 
   return (
     <main className="shell">
@@ -328,7 +368,7 @@ function App() {
             <h1>家門戦記</h1>
             <p className="title-copy">4人の家門を率いて、町で備え、フィールドとダンジョンを攻略する。</p>
             <div className="title-actions">
-              <button type="button" onClick={() => setScreen("game")}>
+              <button type="button" onClick={beginGame}>
                 Start
               </button>
               <button type="button" onClick={openBarracks}>
@@ -336,6 +376,23 @@ function App() {
               </button>
               <span>Enter / Space</span>
             </div>
+          </div>
+        )}
+        {screen === "loading" && (
+          <div className="loading-screen" aria-live="polite">
+            <div className="title-mark">A</div>
+            <p className="eyebrow">Loading Assets</p>
+            <h1>読み込み中</h1>
+            <p className="title-copy">3Dモデルとマップを準備しています。読み込み完了までこの画面で待機します。</p>
+            <div className="loading-bar" aria-label={`読み込み ${loadingProgress}%`}>
+              <span style={{ width: `${loadingProgress}%` }} />
+            </div>
+            <p className="loading-count">
+              {loadedAssets} / {loadingState.total} assets
+            </p>
+            {loadingState.failed > 0 && (
+              <p className="loading-warning">一部アセットはフォールバック表示で続行します。</p>
+            )}
           </div>
         )}
         {screen === "barracks" && (
@@ -393,7 +450,7 @@ function App() {
               </section>
             </div>
             <div className="title-actions">
-              <button type="button" onClick={() => setScreen("game")}>
+              <button type="button" onClick={beginGame}>
                 Start
               </button>
               <button type="button" onClick={() => setScreen("title")}>

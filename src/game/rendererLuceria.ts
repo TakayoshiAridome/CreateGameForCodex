@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { clamp, heroStats, type GameState, type Hero } from "./core";
+import { HERO_GLB_RUN_ANIMATION_TIME_SCALE, clamp, heroStats, type GameState, type Hero } from "./core";
 import { toWorld } from "./rendererCamera";
+import { loadCachedGltf } from "./rendererGltfCache";
 import { addHealthBar } from "./rendererHealth";
 import { sharedGeometry, sharedStandardMaterial, sharedTextureKeys } from "./rendererShared";
 
@@ -189,109 +189,94 @@ function normalizeLuceriaCrossblade(model: THREE.Group) {
 function loadLuceriaGltfModel() {
   if (luceriaGltfModel || luceriaGltfLoading || luceriaGltfFailed) return luceriaGltfModel;
   luceriaGltfLoading = true;
-  new GLTFLoader().load(
-    LUCERIA_MODEL_URL,
-    (gltf) => {
+  loadCachedGltf(LUCERIA_MODEL_URL)
+    .then((gltf) => {
       luceriaGltfModel = gltf.scene;
       normalizeLuceriaModel(luceriaGltfModel);
       markSharedObject(luceriaGltfModel);
       luceriaGltfLoading = false;
-    },
-    undefined,
-    (error) => {
+    })
+    .catch((error) => {
       console.warn("Failed to load Luceria GLB model.", error);
       luceriaGltfFailed = true;
       luceriaGltfLoading = false;
-    }
-  );
+    });
   return luceriaGltfModel;
 }
 
 function loadLuceriaIdleGltfModel() {
   if (luceriaIdleGltfModel || luceriaIdleGltfLoading || luceriaIdleGltfFailed) return luceriaIdleGltfModel;
   luceriaIdleGltfLoading = true;
-  new GLTFLoader().load(
-    LUCERIA_IDLE_MODEL_URL,
-    (gltf) => {
+  loadCachedGltf(LUCERIA_IDLE_MODEL_URL)
+    .then((gltf) => {
       luceriaIdleGltfModel = gltf.scene;
       luceriaIdleGltfClips = gltf.animations;
       normalizeLuceriaModel(luceriaIdleGltfModel);
       markSharedObject(luceriaIdleGltfModel);
       luceriaIdleGltfLoading = false;
-    },
-    undefined,
-    (error) => {
+    })
+    .catch((error) => {
       console.warn("Failed to load Luceria idle GLB model.", error);
       luceriaIdleGltfFailed = true;
       luceriaIdleGltfLoading = false;
-    }
-  );
+    });
   return luceriaIdleGltfModel;
 }
 
 function loadLuceriaRunGltfModel() {
   if (luceriaRunGltfModel || luceriaRunGltfLoading || luceriaRunGltfFailed) return luceriaRunGltfModel;
   luceriaRunGltfLoading = true;
-  new GLTFLoader().load(
-    LUCERIA_RUN_MODEL_URL,
-    (gltf) => {
+  loadCachedGltf(LUCERIA_RUN_MODEL_URL)
+    .then((gltf) => {
       luceriaRunGltfModel = gltf.scene;
       luceriaRunGltfClips = gltf.animations;
       normalizeLuceriaModel(luceriaRunGltfModel);
       applyLuceriaRunFallbackMaterial(luceriaRunGltfModel);
       markSharedObject(luceriaRunGltfModel);
       luceriaRunGltfLoading = false;
-    },
-    undefined,
-    (error) => {
+    })
+    .catch((error) => {
       console.warn("Failed to load Luceria run GLB model.", error);
       luceriaRunGltfFailed = true;
       luceriaRunGltfLoading = false;
-    }
-  );
+    });
   return luceriaRunGltfModel;
 }
 
 function loadLuceriaAttackGltfModel() {
   if (luceriaAttackGltfModel || luceriaAttackGltfLoading || luceriaAttackGltfFailed) return luceriaAttackGltfModel;
   luceriaAttackGltfLoading = true;
-  new GLTFLoader().load(
-    LUCERIA_ATTACK_MODEL_URL,
-    (gltf) => {
+  loadCachedGltf(LUCERIA_ATTACK_MODEL_URL)
+    .then((gltf) => {
       luceriaAttackGltfModel = gltf.scene;
       luceriaAttackGltfClips = gltf.animations;
       normalizeLuceriaModel(luceriaAttackGltfModel);
       markSharedObject(luceriaAttackGltfModel);
       luceriaAttackGltfLoading = false;
-    },
-    undefined,
-    (error) => {
+    })
+    .catch((error) => {
       console.warn("Failed to load Luceria attack GLB model.", error);
       luceriaAttackGltfFailed = true;
       luceriaAttackGltfLoading = false;
-    }
-  );
+    });
   return luceriaAttackGltfModel;
 }
 
 function loadLuceriaCrossbladeModel() {
   if (luceriaCrossbladeModel || luceriaCrossbladeLoading || luceriaCrossbladeFailed) return luceriaCrossbladeModel;
   luceriaCrossbladeLoading = true;
-  new GLTFLoader().load(
-    LUCERIA_CROSSBLADE_MODEL_URL,
-    (gltf) => {
+  loadCachedGltf(LUCERIA_CROSSBLADE_MODEL_URL)
+    .then((gltf) => {
       luceriaCrossbladeModel = gltf.scene;
       normalizeLuceriaCrossblade(luceriaCrossbladeModel);
       markSharedObject(luceriaCrossbladeModel);
       luceriaCrossbladeLoading = false;
-    },
-    undefined,
-    (error) => {
+    })
+    .catch((error) => {
       console.warn("Failed to load Luceria Crossblade GLB model.", error);
       luceriaCrossbladeFailed = true;
       luceriaCrossbladeLoading = false;
-    }
-  );
+    });
   return luceriaCrossbladeModel;
 }
 
@@ -329,7 +314,13 @@ function createLuceriaIdleInstance(hero: Hero) {
 }
 
 function createLuceriaRunInstance(hero: Hero) {
-  return createLuceriaAnimatedInstance("run", loadLuceriaRunGltfModel(), luceriaRunGltfClips, hero.runTime * 0.075, LUCERIA_RUN_VERTICAL_OFFSET);
+  return createLuceriaAnimatedInstance(
+    "run",
+    loadLuceriaRunGltfModel(),
+    luceriaRunGltfClips,
+    hero.runTime * HERO_GLB_RUN_ANIMATION_TIME_SCALE,
+    LUCERIA_RUN_VERTICAL_OFFSET
+  );
 }
 
 function createLuceriaAttackInstance(hero: Hero) {
