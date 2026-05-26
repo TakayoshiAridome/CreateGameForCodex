@@ -95,36 +95,44 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
     arm.position.set(side * 0.23, 0.55, 0.02);
     arm.rotation.x = side * run.stride;
     arm.rotation.z = side * 0.18;
-    if (hero.skillPose === "slash") {
-      arm.rotation.x = -0.9 * skillPulse;
-      arm.rotation.z = side * (0.18 + 0.5 * skillPulse);
-    } else if (hero.skillPose === "shoot") {
-      arm.rotation.x = -0.42 * skillPulse;
-      arm.rotation.z = side * (0.06 - 0.12 * skillPulse);
-      arm.position.z += 0.08 * skillPulse;
-    } else if (hero.skillPose === "cast") {
-      arm.rotation.x = -0.72 * skillPulse;
-      arm.rotation.z = side * (0.42 + 0.26 * skillPulse);
-      arm.position.y += 0.12 * skillPulse;
-    } else if (hero.skillPose === "guard") {
-      arm.rotation.x = -0.25 * skillPulse;
-      arm.rotation.z = side * (0.62 * skillPulse);
-    } else if (hero.skillPose === "rally") {
-      arm.rotation.x = -1.05 * skillPulse;
-      arm.rotation.z = side * (0.28 + 0.36 * skillPulse);
-      arm.position.y += 0.18 * skillPulse;
-    } else if (attackPulse > 0 && hero.weapon === "rifle") {
-      arm.rotation.x = side > 0 ? -0.62 * attackPulse : -0.38 * attackPulse;
-      arm.rotation.z = side * (0.05 - 0.18 * attackPulse);
-      arm.position.z += 0.1 * attackPulse;
-    } else if (attackPulse > 0 && (hero.weapon === "staff" || hero.weapon === "scout")) {
-      arm.rotation.x = -0.66 * attackPulse;
-      arm.rotation.z = side * (0.36 + 0.2 * attackPulse);
-      arm.position.y += 0.08 * attackPulse;
-    } else if (attackPulse > 0) {
-      arm.rotation.x = side > 0 ? -1.08 * attackPulse : -0.26 * attackPulse;
-      arm.rotation.z = side > 0 ? -0.5 * attackPulse : -0.06 * attackPulse;
-      if (side > 0) arm.position.z += 0.1 * attackPulse;
+    switch (hero.skillPose) {
+      case "slash":
+        arm.rotation.x = -0.9 * skillPulse;
+        arm.rotation.z = side * (0.18 + 0.5 * skillPulse);
+        break;
+      case "shoot":
+        arm.rotation.x = -0.42 * skillPulse;
+        arm.rotation.z = side * (0.06 - 0.12 * skillPulse);
+        arm.position.z += 0.08 * skillPulse;
+        break;
+      case "cast":
+        arm.rotation.x = -0.72 * skillPulse;
+        arm.rotation.z = side * (0.42 + 0.26 * skillPulse);
+        arm.position.y += 0.12 * skillPulse;
+        break;
+      case "guard":
+        arm.rotation.x = -0.25 * skillPulse;
+        arm.rotation.z = side * (0.62 * skillPulse);
+        break;
+      case "rally":
+        arm.rotation.x = -1.05 * skillPulse;
+        arm.rotation.z = side * (0.28 + 0.36 * skillPulse);
+        arm.position.y += 0.18 * skillPulse;
+        break;
+      default:
+        if (attackPulse > 0 && hero.weapon === "rifle") {
+          arm.rotation.x = side > 0 ? -0.62 * attackPulse : -0.38 * attackPulse;
+          arm.rotation.z = side * (0.05 - 0.18 * attackPulse);
+          arm.position.z += 0.1 * attackPulse;
+        } else if (attackPulse > 0 && (hero.weapon === "staff" || hero.weapon === "scout")) {
+          arm.rotation.x = -0.66 * attackPulse;
+          arm.rotation.z = side * (0.36 + 0.2 * attackPulse);
+          arm.position.y += 0.08 * attackPulse;
+        } else if (attackPulse > 0) {
+          arm.rotation.x = side > 0 ? -1.08 * attackPulse : -0.26 * attackPulse;
+          arm.rotation.z = side > 0 ? -0.5 * attackPulse : -0.06 * attackPulse;
+          if (side > 0) arm.position.z += 0.1 * attackPulse;
+        }
     }
     model.add(arm);
 
@@ -152,27 +160,38 @@ function createHeroMesh(hero: Hero, state: GameState, index: number) {
   );
   weapon.rotation.z = hero.weapon === "staff" ? 0.18 : -0.75;
   weapon.position.set(0.32, 0.65, 0.03);
-  if (hero.skillPose === "slash") {
-    weapon.rotation.z -= 0.75 * skillPulse;
-    weapon.position.y += 0.12 * skillPulse;
-  } else if (hero.skillPose === "shoot") {
-    weapon.rotation.z = -Math.PI / 2;
-    weapon.position.set(0.34 + 0.08 * skillPulse, 0.72, 0.13);
-  } else if (hero.skillPose === "cast" || hero.skillPose === "rally") {
-    weapon.position.y += 0.22 * skillPulse;
-    weapon.rotation.z += 0.28 * skillPulse;
-  } else if (hero.skillPose === "guard") {
-    weapon.rotation.z = -0.18;
-    weapon.position.set(0.2, 0.72, 0.14);
-  } else if (attackPulse > 0 && hero.weapon === "rifle") {
-    weapon.rotation.z = -Math.PI / 2;
-    weapon.position.set(0.36 + 0.08 * attackPulse, 0.72, 0.14);
-  } else if (attackPulse > 0 && (hero.weapon === "staff" || hero.weapon === "scout")) {
-    weapon.rotation.z = 0.18 + 0.42 * attackPulse;
-    weapon.position.set(0.26, 0.68 + 0.16 * attackPulse, 0.08);
-  } else if (attackPulse > 0) {
-    weapon.rotation.z = -0.75 - 0.95 * attackPulse;
-    weapon.position.set(0.28 + 0.08 * attackPulse, 0.65 + 0.12 * attackPulse, 0.1);
+  switch (hero.skillPose) {
+    case "slash":
+      weapon.rotation.z -= 0.75 * skillPulse;
+      weapon.position.y += 0.12 * skillPulse;
+      break;
+    case "shoot":
+      weapon.rotation.z = -Math.PI / 2;
+      weapon.position.set(0.34 + 0.08 * skillPulse, 0.72, 0.13);
+      break;
+    case "cast":
+      weapon.position.y += 0.22 * skillPulse;
+      weapon.rotation.z += 0.28 * skillPulse;
+      break;
+    case "rally":
+      weapon.position.y += 0.22 * skillPulse;
+      weapon.rotation.z += 0.28 * skillPulse;
+      break;
+    case "guard":
+      weapon.rotation.z = -0.18;
+      weapon.position.set(0.2, 0.72, 0.14);
+      break;
+    default:
+      if (attackPulse > 0 && hero.weapon === "rifle") {
+        weapon.rotation.z = -Math.PI / 2;
+        weapon.position.set(0.36 + 0.08 * attackPulse, 0.72, 0.14);
+      } else if (attackPulse > 0 && (hero.weapon === "staff" || hero.weapon === "scout")) {
+        weapon.rotation.z = 0.18 + 0.42 * attackPulse;
+        weapon.position.set(0.26, 0.68 + 0.16 * attackPulse, 0.08);
+      } else if (attackPulse > 0) {
+        weapon.rotation.z = -0.75 - 0.95 * attackPulse;
+        weapon.position.set(0.28 + 0.08 * attackPulse, 0.65 + 0.12 * attackPulse, 0.1);
+      }
   }
   model.add(weapon);
 

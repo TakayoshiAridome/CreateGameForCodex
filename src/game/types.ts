@@ -141,7 +141,6 @@ export type AreaDefinition = {
   id: AreaId;
   name: string;
   description: string;
-  enemyScale: number;
 };
 
 export type WarpPoint = Point & {

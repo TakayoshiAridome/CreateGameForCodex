@@ -50,20 +50,17 @@ export const areas: Record<AreaId, AreaDefinition> = {
   aureleaf: {
     id: "aureleaf",
     name: "アウレリーフ",
-    description: "広い街区を持つ補給と回復の拠点。敵は出現しません。",
-    enemyScale: 0
+    description: "広い街区を持つ補給と回復の拠点。敵は出現しません。"
   },
   spiritTreeForest01: {
     id: "spiritTreeForest01",
     name: "世界樹の森01",
-    description: "世界樹の根元に広がる広大な探索地帯。一定数の敵が生息し、倒すとしばらくして再出現します。",
-    enemyScale: 1
+    description: "世界樹の根元に広がる広大な探索地帯。一定数の敵が生息し、倒すとしばらくして再出現します。"
   },
   spiritRootCave01: {
     id: "spiritRootCave01",
     name: "精霊樹の根洞1F",
-    description: "精霊樹の地下深くに広がる、巨大な根が絡み合ってできた神秘の洞窟1F。一定数の敵が巡回しています。",
-    enemyScale: 1.35
+    description: "精霊樹の地下深くに広がる、巨大な根が絡み合ってできた神秘の洞窟1F。一定数の敵が巡回しています。"
   }
 };
 

@@ -27,7 +27,6 @@ const BEAR_MOVEMENT_SPEED_MULTIPLIER = 0.96;
 const WOLF_ANIMATION_SPEED = 0.032;
 const BOAR_ANIMATION_SPEED = 0.024;
 const BEAR_ANIMATION_SPEED = 0.02;
-const ENEMY_HP_MULTIPLIER = 3;
 const ENEMY_RESPAWN_DELAY = 5;
 const BOSS_RESPAWN_DELAY = 60;
 const FIXED_NORMAL_ENEMY_LIMITS: Record<AreaId, number> = {
@@ -219,43 +218,45 @@ function combatBottom(state: GameState) {
 }
 
 function playableWidth(state: GameState) {
-  if (state.area === "aureleaf") return Math.max(1900, state.view.w * 2.05);
-  if (state.area === "spiritRootCave01") return Math.max(2300, state.view.w * 2.45);
-  if (state.area === "spiritTreeForest01") return 4092;
-  return state.view.w;
+  switch (state.area) {
+    case "aureleaf":
+      return Math.max(1900, state.view.w * 2.05);
+    case "spiritRootCave01":
+      return Math.max(2300, state.view.w * 2.45);
+    case "spiritTreeForest01":
+      return 4092;
+  }
 }
 
 function playableBottom(state: GameState) {
-  if (state.area === "aureleaf") return Math.max(1120, combatBottom(state) * 1.9);
-  if (state.area === "spiritRootCave01") return Math.max(1420, combatBottom(state) * 2.35);
-  if (state.area === "spiritTreeForest01") return 4092;
-  return combatBottom(state);
+  switch (state.area) {
+    case "aureleaf":
+      return Math.max(1120, combatBottom(state) * 1.9);
+    case "spiritRootCave01":
+      return Math.max(1420, combatBottom(state) * 2.35);
+    case "spiritTreeForest01":
+      return 4092;
+  }
 }
 
 function addLog(state: GameState, text: string) {
   state.logs = [text, ...state.logs].slice(0, 8);
 }
 
-function currentArea(state: GameState) {
-  return areas[state.area];
-}
-
-function warpPointForArea(state: GameState): WarpPoint | null {
-  if (state.area === "aureleaf") return { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" };
-  if (state.area === "spiritTreeForest01") return { x: 210, y: playableBottom(state) - 190, target: "aureleaf", label: "アウレリーフへ" };
-  return null;
-}
-
 function warpPointsForArea(state: GameState): WarpPoint[] {
-  const primary = warpPointForArea(state);
-  if (state.area === "spiritTreeForest01") {
-    return [
-      ...(primary ? [primary] : []),
-      { x: playableWidth(state) - 240, y: 210, target: "spiritRootCave01", label: "精霊樹の根洞1Fへ" }
-    ];
+  switch (state.area) {
+    case "aureleaf":
+      return [
+        { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" }
+      ];
+    case "spiritTreeForest01":
+      return [
+        { x: 210, y: playableBottom(state) - 190, target: "aureleaf", label: "アウレリーフへ" },
+        { x: playableWidth(state) - 240, y: 210, target: "spiritRootCave01", label: "精霊樹の根洞1Fへ" }
+      ];
+    case "spiritRootCave01":
+      return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" }];
   }
-  if (state.area === "spiritRootCave01") return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" }];
-  return primary ? [primary] : [];
 }
 
 function ensureFormationIndex(state: GameState) {
@@ -520,26 +521,68 @@ function emitSkillEffect(state: GameState, skillId: string, hero: Hero, target: 
         skillId.includes("scout") ? "#b7f0cf" :
           "#fff0a6";
 
-  if (skillId === "blade-lunge") addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "thrust", color, life: 0.45, kind: "beam", angle });
-  else if (skillId === "blade-cleave") addSkillEffect(state, { x: center.x, y: center.y, text: "slash", color, life: 0.5, kind: "slash", radius: 118, angle });
-  else if (skillId === "blade-guard") addSkillEffect(state, { x: hero.x, y: hero.y, text: "guard", color, life: 0.75, kind: "aura", radius: 92 });
-  else if (skillId === "blade-rally") addSkillEffect(state, { x: hero.x, y: hero.y, text: "rally", color, life: 0.8, kind: "ring", radius: 168 });
-  else if (skillId === "cordels-flame-rush") addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "緋狼突", color: "#ff8d62", life: 0.5, kind: "beam", angle });
-  else if (skillId === "cordels-ash-break") addSkillEffect(state, { x: center.x, y: center.y, text: "灰燼断", color: "#ffb15f", life: 0.58, kind: "slash", radius: 136, angle });
-  else if (skillId === "cordels-brand-guard") addSkillEffect(state, { x: hero.x, y: hero.y, text: "火印", color: "#ff8d62", life: 0.85, kind: "aura", radius: 108 });
-  else if (skillId === "cordels-warflame") addSkillEffect(state, { x: hero.x, y: hero.y, text: "戦火", color: "#ffb15f", life: 0.9, kind: "ring", radius: 182 });
-  else if (skillId === "rifle-shot") addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "shot", color, life: 0.32, kind: "beam", angle });
-  else if (skillId === "rifle-grenade") addSkillEffect(state, { x: center.x, y: center.y, text: "blast", color: "#ffc27a", life: 0.62, kind: "burst", radius: 132 });
-  else if (skillId === "rifle-smoke") addSkillEffect(state, { x: hero.x, y: hero.y, text: "smoke", color: "#c7d5e8", life: 0.9, kind: "aura", radius: 190 });
-  else if (skillId === "rifle-volley") addSkillEffect(state, { x: hero.x + 120, y: hero.y, x2: hero.x + 430, y2: hero.y, text: "volley", color, life: 0.6, kind: "beam", angle: hero.facing });
-  else if (skillId === "staff-heal") addSkillEffect(state, { x: hero.x, y: hero.y, text: "heal", color: "#aef2d0", life: 0.85, kind: "ring", radius: 180 });
-  else if (skillId === "staff-flare") addSkillEffect(state, { x: center.x, y: center.y, text: "flare", color: "#ffb16f", life: 0.72, kind: "burst", radius: 145 });
-  else if (skillId === "staff-mana") addSkillEffect(state, { x: hero.x, y: hero.y, text: "mana", color: "#86d8e5", life: 0.85, kind: "aura", radius: 170 });
-  else if (skillId === "staff-starfall") addSkillEffect(state, { x: hero.x, y: hero.y, text: "stars", color, life: 0.85, kind: "ring", radius: 230 });
-  else if (skillId === "scout-firstaid") addSkillEffect(state, { x: center.x, y: center.y, text: "aid", color, life: 0.72, kind: "aura", radius: 80 });
-  else if (skillId === "scout-regeneration") addSkillEffect(state, { x: hero.x, y: hero.y, text: "regen", color, life: 0.9, kind: "ring", radius: 160 });
-  else if (skillId === "scout-haste") addSkillEffect(state, { x: hero.x, y: hero.y, text: "haste", color: "#e6ffd2", life: 0.72, kind: "ring", radius: 150 });
-  else if (skillId === "scout-sanctuary") addSkillEffect(state, { x: hero.x, y: hero.y, text: "sanct", color: "#fff0a6", life: 1, kind: "aura", radius: 210 });
+  switch (skillId) {
+    case "blade-lunge":
+      addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "thrust", color, life: 0.45, kind: "beam", angle });
+      break;
+    case "blade-cleave":
+      addSkillEffect(state, { x: center.x, y: center.y, text: "slash", color, life: 0.5, kind: "slash", radius: 118, angle });
+      break;
+    case "blade-guard":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "guard", color, life: 0.75, kind: "aura", radius: 92 });
+      break;
+    case "blade-rally":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "rally", color, life: 0.8, kind: "ring", radius: 168 });
+      break;
+    case "cordels-flame-rush":
+      addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "緋狼突", color: "#ff8d62", life: 0.5, kind: "beam", angle });
+      break;
+    case "cordels-ash-break":
+      addSkillEffect(state, { x: center.x, y: center.y, text: "灰燼断", color: "#ffb15f", life: 0.58, kind: "slash", radius: 136, angle });
+      break;
+    case "cordels-brand-guard":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "火印", color: "#ff8d62", life: 0.85, kind: "aura", radius: 108 });
+      break;
+    case "cordels-warflame":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "戦火", color: "#ffb15f", life: 0.9, kind: "ring", radius: 182 });
+      break;
+    case "rifle-shot":
+      addSkillEffect(state, { x: hero.x, y: hero.y, x2: center.x, y2: center.y, text: "shot", color, life: 0.32, kind: "beam", angle });
+      break;
+    case "rifle-grenade":
+      addSkillEffect(state, { x: center.x, y: center.y, text: "blast", color: "#ffc27a", life: 0.62, kind: "burst", radius: 132 });
+      break;
+    case "rifle-smoke":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "smoke", color: "#c7d5e8", life: 0.9, kind: "aura", radius: 190 });
+      break;
+    case "rifle-volley":
+      addSkillEffect(state, { x: hero.x + 120, y: hero.y, x2: hero.x + 430, y2: hero.y, text: "volley", color, life: 0.6, kind: "beam", angle: hero.facing });
+      break;
+    case "staff-heal":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "heal", color: "#aef2d0", life: 0.85, kind: "ring", radius: 180 });
+      break;
+    case "staff-flare":
+      addSkillEffect(state, { x: center.x, y: center.y, text: "flare", color: "#ffb16f", life: 0.72, kind: "burst", radius: 145 });
+      break;
+    case "staff-mana":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "mana", color: "#86d8e5", life: 0.85, kind: "aura", radius: 170 });
+      break;
+    case "staff-starfall":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "stars", color, life: 0.85, kind: "ring", radius: 230 });
+      break;
+    case "scout-firstaid":
+      addSkillEffect(state, { x: center.x, y: center.y, text: "aid", color, life: 0.72, kind: "aura", radius: 80 });
+      break;
+    case "scout-regeneration":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "regen", color, life: 0.9, kind: "ring", radius: 160 });
+      break;
+    case "scout-haste":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "haste", color: "#e6ffd2", life: 0.72, kind: "ring", radius: 150 });
+      break;
+    case "scout-sanctuary":
+      addSkillEffect(state, { x: hero.x, y: hero.y, text: "sanct", color: "#fff0a6", life: 1, kind: "aura", radius: 210 });
+      break;
+  }
   addSkillEffect(state, { x: hero.x, y: hero.y - 40, text: skillId.split("-").at(-1) ?? "skill", color, life: 0.55, kind: "text" });
 }
 
@@ -563,40 +606,51 @@ function rollForestEnemyType(): ForestEnemyType {
 }
 
 function forestEnemySkill(type: ForestEnemyType) {
-  if (type === "wolf") return { id: "bite" as const, name: "かみつき" };
-  if (type === "boar") return { id: "charge" as const, name: "突進" };
-  return { id: "scratch" as const, name: "引っ掻き" };
+  switch (type) {
+    case "wolf":
+      return { id: "bite" as const, name: "かみつき" };
+    case "boar":
+      return { id: "charge" as const, name: "突進" };
+    case "bear":
+      return { id: "scratch" as const, name: "引っ掻き" };
+  }
 }
 
 function forestEnemyLabel(type: ForestEnemyType) {
-  if (type === "wolf") return "ウルフ";
-  if (type === "boar") return "ボア";
-  return "ベア";
+  switch (type) {
+    case "wolf":
+      return "ウルフ";
+    case "boar":
+      return "ボア";
+    case "bear":
+      return "ベア";
+  }
 }
 
 function forestEnemyStats(type: ForestEnemyType, pressure: number) {
-  if (type === "wolf") {
-    return {
-      hp: 58 * pressure,
-      speed: STANDARD_MOVEMENT_SPEED * WOLF_MOVEMENT_SPEED_MULTIPLIER,
-      attack: 8,
-      radius: 19
-    };
+  switch (type) {
+    case "wolf":
+      return {
+        hp: 174 * pressure,
+        speed: STANDARD_MOVEMENT_SPEED * WOLF_MOVEMENT_SPEED_MULTIPLIER,
+        attack: 8,
+        radius: 19
+      };
+    case "boar":
+      return {
+        hp: 216 * pressure,
+        speed: STANDARD_MOVEMENT_SPEED * BOAR_MOVEMENT_SPEED_MULTIPLIER,
+        attack: 10,
+        radius: 23
+      };
+    case "bear":
+      return {
+        hp: 288 * pressure,
+        speed: STANDARD_MOVEMENT_SPEED * BEAR_MOVEMENT_SPEED_MULTIPLIER,
+        attack: 13,
+        radius: 28
+      };
   }
-  if (type === "boar") {
-    return {
-      hp: 72 * pressure,
-      speed: STANDARD_MOVEMENT_SPEED * BOAR_MOVEMENT_SPEED_MULTIPLIER,
-      attack: 10,
-      radius: 23
-    };
-  }
-  return {
-    hp: 96 * pressure,
-    speed: STANDARD_MOVEMENT_SPEED * BEAR_MOVEMENT_SPEED_MULTIPLIER,
-    attack: 13,
-    radius: 28
-  };
 }
 
 function standardEnemyType(elite: boolean) {
@@ -605,15 +659,11 @@ function standardEnemyType(elite: boolean) {
 
 function standardEnemyStats(elite: boolean, pressure: number) {
   return {
-    hp: (elite ? 88 : 48) * pressure,
+    hp: (elite ? 264 : 144) * pressure,
     speed: STANDARD_MOVEMENT_SPEED,
     attack: elite ? 11 : 7,
     radius: elite ? 22 : 17
   };
-}
-
-function scaledEnemyHp(hp: number) {
-  return Math.round(hp * ENEMY_HP_MULTIPLIER);
 }
 
 function normalEnemyLimit(area: AreaId) {
@@ -631,15 +681,14 @@ function liveEnemyCount(state: GameState, boss: boolean) {
 function spawnEnemy(state: GameState, boss = false) {
   if (state.area === "aureleaf") return;
   const point = randomSpawnPoint(state);
-  const area = currentArea(state);
   const forestEnemyType = !boss && state.area === "spiritTreeForest01" ? rollForestEnemyType() : null;
   const forestEnemy = forestEnemyType !== null;
   const elite = !boss && !forestEnemy && Math.random() < 0.18 + Math.min(0.18, state.score / 5000);
-  const pressure = (1 + Math.min(1.6, state.score / 2200)) * area.enemyScale;
+  const pressure = 1 + Math.min(1.6, state.score / 2200);
   const enemyElements: ElementId[] = ["fire", "water", "wind", "earth", "dark"];
   const baseStats = boss
     ? {
-      hp: 420 + state.bossCount * 120,
+      hp: 1260 + state.bossCount * 360,
       speed: STANDARD_MOVEMENT_SPEED,
       attack: 18 + state.bossCount * 4,
       radius: 34
@@ -647,7 +696,7 @@ function spawnEnemy(state: GameState, boss = false) {
     : forestEnemyType
       ? forestEnemyStats(forestEnemyType, pressure)
       : standardEnemyStats(elite, pressure);
-  const enemyHp = scaledEnemyHp(baseStats.hp);
+  const enemyHp = Math.round(baseStats.hp);
   state.enemies.push({
     type: boss ? "boss" : forestEnemyType ?? standardEnemyType(elite),
     element: boss ? (state.bossCount % 2 === 0 ? "dark" : "light") : forestEnemy ? "earth" : enemyElements[Math.floor(Math.random() * enemyElements.length)],
@@ -1036,115 +1085,126 @@ function useSkill(state: GameState, key: SkillKey) {
   startSkillAnimation(hero, skill.id);
   emitSkillEffect(state, skill.id, hero, target);
 
-  if (skill.id === "blade-lunge" && target) {
-    moveToward(hero, target, 1, 3.2);
-    damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.75, "#fff0a6", hero.element);
-  }
-  if (skill.id === "blade-cleave") {
-    const center = target ?? hero;
-    for (const enemy of enemiesNear(state, center, 98)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.08, "#ffd28a", hero.element);
-  }
-  if (skill.id === "blade-guard") {
-    setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 24 + Math.floor(physicalPower * 0.35));
-    state.particles.push({ x: hero.x, y: hero.y - 30, text: "guard", color: "#fff0a6", life: 0.9 });
-  }
-  if (skill.id === "blade-rally") {
-    for (const [allyIndex, ally] of state.heroes.entries()) {
-      setHeroHp(state, ally, allyIndex, ally.hp + 12 + Math.floor(physicalPower * 0.22));
-      ally.mp = clamp(ally.mp + 12, 0, heroStats(ally).maxMp);
-      state.particles.push({ x: ally.x, y: ally.y - 30, text: "+", color: "#ffe2a0", life: 0.9 });
+  switch (skill.id) {
+    case "blade-lunge":
+      if (target) {
+        moveToward(hero, target, 1, 3.2);
+        damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.75, "#fff0a6", hero.element);
+      }
+      break;
+    case "blade-cleave": {
+      const center = target ?? hero;
+      for (const enemy of enemiesNear(state, center, 98)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.08, "#ffd28a", hero.element);
+      break;
     }
-  }
-
-  if (skill.id === "cordels-flame-rush" && target) {
-    moveToward(hero, target, 1, 3.45);
-    damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.85, "#ff8d62", "fire");
-  }
-  if (skill.id === "cordels-ash-break") {
-    const center = target ?? hero;
-    for (const enemy of enemiesNear(state, center, 118)) {
-      damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#ffb15f", "fire");
+    case "blade-guard":
+      setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 24 + Math.floor(physicalPower * 0.35));
+      state.particles.push({ x: hero.x, y: hero.y - 30, text: "guard", color: "#fff0a6", life: 0.9 });
+      break;
+    case "blade-rally":
+      for (const [allyIndex, ally] of state.heroes.entries()) {
+        setHeroHp(state, ally, allyIndex, ally.hp + 12 + Math.floor(physicalPower * 0.22));
+        ally.mp = clamp(ally.mp + 12, 0, heroStats(ally).maxMp);
+        state.particles.push({ x: ally.x, y: ally.y - 30, text: "+", color: "#ffe2a0", life: 0.9 });
+      }
+      break;
+    case "cordels-flame-rush":
+      if (target) {
+        moveToward(hero, target, 1, 3.45);
+        damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.85, "#ff8d62", "fire");
+      }
+      break;
+    case "cordels-ash-break": {
+      const center = target ?? hero;
+      for (const enemy of enemiesNear(state, center, 118)) {
+        damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#ffb15f", "fire");
+      }
+      break;
     }
-  }
-  if (skill.id === "cordels-brand-guard") {
-    setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 18 + Math.floor(physicalPower * 0.42));
-    hero.mp = clamp(hero.mp + 8, 0, stats.maxMp);
-    state.particles.push({ x: hero.x, y: hero.y - 30, text: "fire guard", color: "#ff8d62", life: 0.9 });
-  }
-  if (skill.id === "cordels-warflame") {
-    for (const [allyIndex, ally] of state.heroes.entries()) {
-      setHeroHp(state, ally, allyIndex, ally.hp + 10 + Math.floor(physicalPower * 0.18));
-      ally.mp = clamp(ally.mp + 10, 0, heroStats(ally).maxMp);
-      state.particles.push({ x: ally.x, y: ally.y - 30, text: "flame", color: "#ffb15f", life: 0.9 });
+    case "cordels-brand-guard":
+      setHeroHp(state, hero, state.heroes.indexOf(hero), hero.hp + 18 + Math.floor(physicalPower * 0.42));
+      hero.mp = clamp(hero.mp + 8, 0, stats.maxMp);
+      state.particles.push({ x: hero.x, y: hero.y - 30, text: "fire guard", color: "#ff8d62", life: 0.9 });
+      break;
+    case "cordels-warflame":
+      for (const [allyIndex, ally] of state.heroes.entries()) {
+        setHeroHp(state, ally, allyIndex, ally.hp + 10 + Math.floor(physicalPower * 0.18));
+        ally.mp = clamp(ally.mp + 10, 0, heroStats(ally).maxMp);
+        state.particles.push({ x: ally.x, y: ally.y - 30, text: "flame", color: "#ffb15f", life: 0.9 });
+      }
+      for (const enemy of enemiesNear(state, hero, 160)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.52, "#ff8d62", "fire");
+      break;
+    case "rifle-shot":
+      if (target) damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.45, "#d9ecff", hero.element);
+      break;
+    case "rifle-grenade":
+      if (target) {
+        for (const enemy of enemiesNear(state, target, 112)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.95, "#ffc27a", hero.element);
+      }
+      break;
+    case "rifle-smoke":
+      for (const enemy of enemiesNear(state, hero, 190)) {
+        enemy.speed *= 0.72;
+        damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.34, "#c7d5e8", hero.element);
+      }
+      break;
+    case "rifle-volley":
+      for (const enemy of state.enemies) {
+        if (Math.abs(enemy.y - hero.y) < 94) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#d9ecff", hero.element);
+      }
+      break;
+    case "staff-heal":
+      for (const [allyIndex, ally] of state.heroes.entries()) {
+        setHeroHp(state, ally, allyIndex, ally.hp + 18 + healPower);
+        state.particles.push({ x: ally.x, y: ally.y - 28, text: "+", color: "#aef2d0", life: 0.9 });
+      }
+      break;
+    case "staff-flare":
+      if (target) {
+        for (const enemy of enemiesNear(state, target, 125)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 1.08, "#ffb16f", hero.element);
+      }
+      break;
+    case "staff-mana":
+      for (const ally of state.heroes) {
+        ally.mp = clamp(ally.mp + 14 + Math.floor(magicPower * 0.45), 0, heroStats(ally).maxMp);
+        state.particles.push({ x: ally.x, y: ally.y - 28, text: "mp", color: "#86d8e5", life: 0.9 });
+      }
+      break;
+    case "staff-starfall":
+      for (const enemy of state.enemies) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.9, "#d7b5ff", hero.element);
+      break;
+    case "scout-firstaid": {
+      const targetAlly = state.heroes
+        .filter((ally) => ally.hp > 0)
+        .sort((a, b) => a.hp / heroStats(a).maxHp - b.hp / heroStats(b).maxHp)[0];
+      if (targetAlly) {
+        setHeroHp(state, targetAlly, state.heroes.indexOf(targetAlly), targetAlly.hp + 18 + healPower);
+        state.particles.push({ x: targetAlly.x, y: targetAlly.y - 30, text: "+aid", color: "#b7f0cf", life: 1 });
+      }
+      break;
     }
-    for (const enemy of enemiesNear(state, hero, 160)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.52, "#ff8d62", "fire");
-  }
-
-  if (skill.id === "rifle-shot" && target) damageWithAccuracy(state, target, stats.accuracy, physicalPower * 1.45, "#d9ecff", hero.element);
-  if (skill.id === "rifle-grenade" && target) {
-    for (const enemy of enemiesNear(state, target, 112)) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.95, "#ffc27a", hero.element);
-  }
-  if (skill.id === "rifle-smoke") {
-    for (const enemy of enemiesNear(state, hero, 190)) {
-      enemy.speed *= 0.72;
-      damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 0.34, "#c7d5e8", hero.element);
-    }
-  }
-  if (skill.id === "rifle-volley") {
-    for (const enemy of state.enemies) {
-      if (Math.abs(enemy.y - hero.y) < 94) damageWithAccuracy(state, enemy, stats.accuracy, physicalPower * 1.12, "#d9ecff", hero.element);
-    }
-  }
-
-  if (skill.id === "staff-heal") {
-    for (const [allyIndex, ally] of state.heroes.entries()) {
-      setHeroHp(state, ally, allyIndex, ally.hp + 18 + healPower);
-      state.particles.push({ x: ally.x, y: ally.y - 28, text: "+", color: "#aef2d0", life: 0.9 });
-    }
-  }
-  if (skill.id === "staff-flare" && target) {
-    for (const enemy of enemiesNear(state, target, 125)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 1.08, "#ffb16f", hero.element);
-  }
-  if (skill.id === "staff-mana") {
-    for (const ally of state.heroes) {
-      ally.mp = clamp(ally.mp + 14 + Math.floor(magicPower * 0.45), 0, heroStats(ally).maxMp);
-      state.particles.push({ x: ally.x, y: ally.y - 28, text: "mp", color: "#86d8e5", life: 0.9 });
-    }
-  }
-  if (skill.id === "staff-starfall") {
-    for (const enemy of state.enemies) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.9, "#d7b5ff", hero.element);
-  }
-
-  if (skill.id === "scout-firstaid") {
-    const targetAlly = state.heroes
-      .filter((ally) => ally.hp > 0)
-      .sort((a, b) => a.hp / heroStats(a).maxHp - b.hp / heroStats(b).maxHp)[0];
-    if (targetAlly) {
-      setHeroHp(state, targetAlly, state.heroes.indexOf(targetAlly), targetAlly.hp + 18 + healPower);
-      state.particles.push({ x: targetAlly.x, y: targetAlly.y - 30, text: "+aid", color: "#b7f0cf", life: 1 });
-    }
-  }
-  if (skill.id === "scout-regeneration") {
-    for (const [allyIndex, ally] of state.heroes.entries()) {
-      setHeroHp(state, ally, allyIndex, ally.hp + 10 + Math.floor(healPower * 0.55));
-      ally.mp = clamp(ally.mp + 8, 0, heroStats(ally).maxMp);
-      state.particles.push({ x: ally.x, y: ally.y - 28, text: "regen", color: "#b7f0cf", life: 0.9 });
-    }
-  }
-  if (skill.id === "scout-haste") {
-    for (const ally of state.heroes) {
-      ally.cooldown = Math.max(0, ally.cooldown - 0.35);
-      ally.mp = clamp(ally.mp + 14, 0, heroStats(ally).maxMp);
-      state.particles.push({ x: ally.x, y: ally.y - 28, text: "haste", color: "#e6ffd2", life: 0.9 });
-    }
-  }
-  if (skill.id === "scout-sanctuary") {
-    for (const [allyIndex, ally] of state.heroes.entries()) {
-      setHeroHp(state, ally, allyIndex, ally.hp + 16 + Math.floor(healPower * 0.75));
-      ally.mp = clamp(ally.mp + 18, 0, heroStats(ally).maxMp);
-      state.particles.push({ x: ally.x, y: ally.y - 32, text: "sanct", color: "#fff0a6", life: 1 });
-    }
-    for (const enemy of enemiesNear(state, hero, 170)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.62, "#fff0a6", hero.element);
+    case "scout-regeneration":
+      for (const [allyIndex, ally] of state.heroes.entries()) {
+        setHeroHp(state, ally, allyIndex, ally.hp + 10 + Math.floor(healPower * 0.55));
+        ally.mp = clamp(ally.mp + 8, 0, heroStats(ally).maxMp);
+        state.particles.push({ x: ally.x, y: ally.y - 28, text: "regen", color: "#b7f0cf", life: 0.9 });
+      }
+      break;
+    case "scout-haste":
+      for (const ally of state.heroes) {
+        ally.cooldown = Math.max(0, ally.cooldown - 0.35);
+        ally.mp = clamp(ally.mp + 14, 0, heroStats(ally).maxMp);
+        state.particles.push({ x: ally.x, y: ally.y - 28, text: "haste", color: "#e6ffd2", life: 0.9 });
+      }
+      break;
+    case "scout-sanctuary":
+      for (const [allyIndex, ally] of state.heroes.entries()) {
+        setHeroHp(state, ally, allyIndex, ally.hp + 16 + Math.floor(healPower * 0.75));
+        ally.mp = clamp(ally.mp + 18, 0, heroStats(ally).maxMp);
+        state.particles.push({ x: ally.x, y: ally.y - 32, text: "sanct", color: "#fff0a6", life: 1 });
+      }
+      for (const enemy of enemiesNear(state, hero, 170)) damageWithAccuracy(state, enemy, stats.accuracy, magicPower * 0.62, "#fff0a6", hero.element);
+      break;
   }
 }
 
@@ -1628,7 +1688,6 @@ export {
   shops,
   skillKeys,
   upgradeCost,
-  warpPointForArea,
   warpPointsForArea
 };
 
