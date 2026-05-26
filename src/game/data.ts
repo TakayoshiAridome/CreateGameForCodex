@@ -3,15 +3,15 @@ import type { AreaDefinition, AreaId, ConsumableItem, ElementId, Equipment, Equi
 export const formations: Formation[] = [
   {
     name: "一尖双翼",
-    slots: [{ x: 64, y: 0 }, { x: -40, y: -58 }, { x: -40, y: 58 }, { x: -148, y: 0 }]
+    slots: [{ x: 94, y: 0 }, { x: -66, y: -92 }, { x: -66, y: 92 }, { x: -218, y: 0 }]
   },
   {
     name: "双牙護列",
-    slots: [{ x: 54, y: -42 }, { x: 54, y: 42 }, { x: -54, y: 0 }, { x: -154, y: 0 }]
+    slots: [{ x: 84, y: -72 }, { x: 84, y: 72 }, { x: -86, y: 0 }, { x: -224, y: 0 }]
   },
   {
     name: "影羽の陣",
-    slots: [{ x: 62, y: 0 }, { x: -46, y: 0 }, { x: -148, y: -54 }, { x: -148, y: 54 }]
+    slots: [{ x: 92, y: 0 }, { x: -82, y: 0 }, { x: -220, y: -88 }, { x: -220, y: 88 }]
   }
 ];
 

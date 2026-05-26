@@ -90,7 +90,7 @@ function createWorldTreeForestInstance(width: number, depth: number) {
 }
 
 function markSharedGrassObject(object: THREE.Object3D) {
-  markSharedTerrainObject(object, 0.96, 0.045);
+  markSharedTerrainObject(object, 0.88, 0.035);
 }
 
 function seededUnit(seed: number) {
