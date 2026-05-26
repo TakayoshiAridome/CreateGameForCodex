@@ -63,8 +63,6 @@ function createGameState(): GameState {
     score: 0,
     gold: 220,
     last: performance.now(),
-    spawnTimer: 1.1,
-    bossTimer: 28,
     bossCount: 0,
     cameraYaw: 0.725,
     formationFront: { x: 1, y: 0 },
@@ -200,8 +198,6 @@ function recoverAtTown(state: GameState, penalty = false) {
   state.enemyRespawns = [];
   state.particles = [];
   state.targetPoint = null;
-  state.spawnTimer = 1.1;
-  state.bossTimer = areas.spiritTreeForest01.bossInterval;
   for (const [heroIndex, hero] of state.heroes.entries()) {
     const stats = heroStats(hero);
     setHeroHp(state, hero, heroIndex, Math.max(1, Math.floor(stats.maxHp * 0.55)));
@@ -350,8 +346,6 @@ function changeAreaState(state: GameState, area: AreaId) {
   state.enemyRespawns = [];
   state.particles = [];
   state.targetPoint = null;
-  state.spawnTimer = area === "spiritRootCave01" ? 0.65 : 1.1;
-  state.bossTimer = areas[area].bossInterval;
   state.status = `${areas[area].name}へ移動しました。${areas[area].description}`;
   addLog(state, `${areas[area].name}へ移動。`);
   if (area === "aureleaf") {
@@ -1511,8 +1505,6 @@ class GameEngine {
     this.state.enemyRespawns = [];
     this.state.particles = [];
     this.state.targetPoint = null;
-    this.state.spawnTimer = area === "spiritRootCave01" ? 0.65 : 1.1;
-    this.state.bossTimer = areas[area].bossInterval;
     this.state.status = `${areas[area].name}へ移動しました。${areas[area].description}`;
     addLog(this.state, `${areas[area].name}へ移動。`);
     if (area === "aureleaf") {

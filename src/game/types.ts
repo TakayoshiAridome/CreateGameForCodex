@@ -141,8 +141,6 @@ export type AreaDefinition = {
   id: AreaId;
   name: string;
   description: string;
-  spawnRate: number;
-  bossInterval: number;
   enemyScale: number;
 };
 
@@ -167,8 +165,6 @@ export type GameState = {
   score: number;
   gold: number;
   last: number;
-  spawnTimer: number;
-  bossTimer: number;
   bossCount: number;
   cameraYaw: number;
   formationFront: Point;
