@@ -1,13 +1,11 @@
 import * as THREE from "three";
-import { clamp, heroStats, type GameState, type Hero } from "./core";
+import { basicAttackMotionDuration, clamp, heroStats, type GameState, type Hero } from "./core";
 import { toWorld } from "./rendererCamera";
 import { createCordelsMesh } from "./rendererCordels";
 import { addHealthBar } from "./rendererHealth";
 import { createLuceriaMesh } from "./rendererLuceria";
 import { sharedBasicMaterial, sharedGeometry, sharedStandardMaterial } from "./rendererShared";
 
-const BASIC_ATTACK_VISUAL_DURATION = 0.55;
-const MIN_BASIC_ATTACK_VISUAL_DURATION = 0.28;
 function heroFacingAngle(hero: Hero) {
   return hero.hp > 0 ? hero.facing : 0;
 }
@@ -24,7 +22,7 @@ function runCycle(hero: Hero) {
 
 function basicAttackPulse(hero: Hero) {
   if (!hero.attacking || hero.skillPose) return 0;
-  const duration = Math.max(MIN_BASIC_ATTACK_VISUAL_DURATION, BASIC_ATTACK_VISUAL_DURATION / heroStats(hero).attackSpeed);
+  const duration = basicAttackMotionDuration(hero);
   return Math.sin(clamp(hero.attackTime / duration, 0, 1) * Math.PI);
 }
 

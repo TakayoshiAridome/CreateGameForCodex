@@ -8,10 +8,12 @@ const PARTY_DETECTION_RANGE = 460;
 const ENEMY_DETECTION_RANGE = 320;
 const ELITE_DETECTION_BONUS = 60;
 const BOSS_DETECTION_BONUS = 150;
-const DEFAULT_ATTACK_MOTION_DURATION = 0.55;
 const LUCERIA_ATTACK_MOTION_DURATION = 0.92;
 const MIN_ATTACK_MOTION_DURATION = 0.28;
 const MIN_LUCERIA_ATTACK_MOTION_DURATION = 0.46;
+const MELEE_BASIC_ATTACK_BASE_COOLDOWN = 0.76;
+const RIFLE_BASIC_ATTACK_BASE_COOLDOWN = 1.02;
+const BASIC_ATTACK_MOTION_COOLDOWN_RATIO = 0.9;
 const MOVE_TARGET_ARRIVAL_DISTANCE = 18;
 const HERO_MOVEMENT_SPEED_MULTIPLIER = 1.35;
 const HERO_SHARED_BASE_MOVEMENT_SPEED = 173;
@@ -25,6 +27,7 @@ const BEAR_MOVEMENT_SPEED_MULTIPLIER = 0.96;
 const WOLF_ANIMATION_SPEED = 0.032;
 const BOAR_ANIMATION_SPEED = 0.024;
 const BEAR_ANIMATION_SPEED = 0.02;
+const ENEMY_HP_MULTIPLIER = 3;
 type ForestEnemyType = "wolf" | "boar" | "bear";
 
 function createGameState(): GameState {
@@ -459,9 +462,14 @@ function startSkillAnimation(hero: Hero, skillId: string) {
   hero.skillTime = hero.skillPose === "cast" || hero.skillPose === "rally" ? 0.78 : 0.58;
 }
 
-function attackMotionDuration(hero: Hero) {
+function basicAttackBaseCooldown(hero: Hero) {
+  return hero.weapon === "rifle" ? RIFLE_BASIC_ATTACK_BASE_COOLDOWN : MELEE_BASIC_ATTACK_BASE_COOLDOWN;
+}
+
+export function basicAttackMotionDuration(hero: Hero) {
   const stats = heroStats(hero);
-  const baseDuration = hero.name === "ルシェリア" ? LUCERIA_ATTACK_MOTION_DURATION : DEFAULT_ATTACK_MOTION_DURATION;
+  const baseDuration =
+    hero.name === "ルシェリア" ? LUCERIA_ATTACK_MOTION_DURATION : basicAttackBaseCooldown(hero) * BASIC_ATTACK_MOTION_COOLDOWN_RATIO;
   const minDuration = hero.name === "ルシェリア" ? MIN_LUCERIA_ATTACK_MOTION_DURATION : MIN_ATTACK_MOTION_DURATION;
   return Math.max(minDuration, baseDuration / stats.attackSpeed);
 }
@@ -594,6 +602,10 @@ function standardEnemyStats(elite: boolean, pressure: number) {
   };
 }
 
+function scaledEnemyHp(hp: number) {
+  return Math.round(hp * ENEMY_HP_MULTIPLIER);
+}
+
 function spawnEnemy(state: GameState, boss = false) {
   if (state.area === "aureleaf") return;
   const point = randomSpawnPoint(state);
@@ -613,6 +625,7 @@ function spawnEnemy(state: GameState, boss = false) {
     : forestEnemyType
       ? forestEnemyStats(forestEnemyType, pressure)
       : standardEnemyStats(elite, pressure);
+  const enemyHp = scaledEnemyHp(baseStats.hp);
   state.enemies.push({
     type: boss ? "boss" : forestEnemyType ?? standardEnemyType(elite),
     element: boss ? (state.bossCount % 2 === 0 ? "dark" : "light") : forestEnemy ? "earth" : enemyElements[Math.floor(Math.random() * enemyElements.length)],
@@ -620,8 +633,8 @@ function spawnEnemy(state: GameState, boss = false) {
     x: point.x,
     y: point.y,
     facing: Math.random() * Math.PI * 2,
-    hp: baseStats.hp,
-    maxHp: baseStats.hp,
+    hp: enemyHp,
+    maxHp: enemyHp,
     speed: baseStats.speed,
     attack: baseStats.attack,
     cooldown: 0,
@@ -1080,7 +1093,7 @@ function updateGame(state: GameState, dt: number) {
     if ((hero.skillTime ?? 0) <= 0) hero.skillPose = undefined;
     if (hero.attacking) {
       hero.attackTime += dt;
-      if (hero.attackTime > attackMotionDuration(hero)) {
+      if (hero.attackTime > basicAttackMotionDuration(hero)) {
         resolvePendingBasicAttack(state, hero);
         hero.attacking = false;
         hero.attackTime = 0;
@@ -1159,8 +1172,7 @@ function updateGame(state: GameState, dt: number) {
       faceToward(hero, target);
       if (hero.cooldown > 0) continue;
       beginBasicAttack(hero, target, stats);
-      const baseCooldown = hero.weapon === "rifle" ? 1.02 : 0.76;
-      hero.cooldown = baseCooldown / stats.attackSpeed;
+      hero.cooldown = basicAttackBaseCooldown(hero) / stats.attackSpeed;
     }
   }
 

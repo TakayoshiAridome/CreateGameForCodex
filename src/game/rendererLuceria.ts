@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { HERO_GLB_RUN_ANIMATION_TIME_SCALE, clamp, heroStats, type GameState, type Hero } from "./core";
+import { HERO_GLB_RUN_ANIMATION_TIME_SCALE, basicAttackMotionDuration, clamp, heroStats, type GameState, type Hero } from "./core";
 import { toWorld } from "./rendererCamera";
 import { loadCachedGltf } from "./rendererGltfCache";
 import { addHealthBar } from "./rendererHealth";
@@ -288,7 +288,7 @@ function preloadLuceriaModels() {
   loadLuceriaCrossbladeModel();
 }
 
-function createLuceriaAnimatedInstance(kind: LuceriaAnimationKind, source: THREE.Group | null, clips: THREE.AnimationClip[], time: number, verticalOffset = 0) {
+function createLuceriaAnimatedInstance(kind: LuceriaAnimationKind, source: THREE.Group | null, clips: THREE.AnimationClip[], time: number, verticalOffset = 0, loop = true) {
   if (!source) return null;
   const clip = clips[0] ?? null;
   let instance = luceriaAnimationInstances[kind];
@@ -298,13 +298,19 @@ function createLuceriaAnimatedInstance(kind: LuceriaAnimationKind, source: THREE
     if (clip && clip.duration > 0) {
       mixer = new THREE.AnimationMixer(model);
       const action = mixer.clipAction(clip);
+      if (!loop) {
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+      }
       action.play();
     }
     instance = { model, mixer, clip, baseY: model.position.y };
     luceriaAnimationInstances[kind] = instance;
   }
   instance.model.position.y = instance.baseY + verticalOffset;
-  if (instance.mixer && instance.clip && instance.clip.duration > 0) instance.mixer.setTime(time % instance.clip.duration);
+  if (instance.mixer && instance.clip && instance.clip.duration > 0) {
+    instance.mixer.setTime(loop ? time % instance.clip.duration : clamp(time, 0, instance.clip.duration));
+  }
   return instance.model;
 }
 
@@ -324,7 +330,9 @@ function createLuceriaRunInstance(hero: Hero) {
 }
 
 function createLuceriaAttackInstance(hero: Hero) {
-  return createLuceriaAnimatedInstance("attack", loadLuceriaAttackGltfModel(), luceriaAttackGltfClips, hero.attackTime * 1.55 * heroStats(hero).attackSpeed);
+  const clipDuration = luceriaAttackGltfClips[0]?.duration ?? 0;
+  const attackProgress = clamp(hero.attackTime / basicAttackMotionDuration(hero), 0, 1);
+  return createLuceriaAnimatedInstance("attack", loadLuceriaAttackGltfModel(), luceriaAttackGltfClips, clipDuration * attackProgress, 0, false);
 }
 
 function luceriaAttackFallbackPulse(hero: Hero) {

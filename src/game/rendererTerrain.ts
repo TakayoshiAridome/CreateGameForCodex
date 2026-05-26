@@ -357,7 +357,7 @@ function addWorldTreeForestModel(group: THREE.Group, state: GameState, width: nu
   loadCachedGltf(WORLD_TREE_FOREST_MODEL_URL)
     .then((gltf) => {
       worldTreeForestModel = gltf.scene;
-      markSharedTerrainObject(worldTreeForestModel, 1.72, 0.16);
+      markSharedTerrainObject(worldTreeForestModel, 2.35, 0.42);
       addLoadedModel();
     })
     .catch((error) => {
@@ -571,12 +571,17 @@ function rebuildField(view: ThreeView, state: GameState) {
   const width = worldWidth / WORLD_SCALE;
   const depth = worldDepth / WORLD_SCALE;
   const isWorldTreeForest = state.area === "spiritTreeForest01";
-  const groundColor = state.area === "aureleaf" ? 0x6d6f59 : state.area === "spiritRootCave01" ? 0x393446 : 0x66724a;
+  const groundColor = state.area === "aureleaf" ? 0x6d6f59 : state.area === "spiritRootCave01" ? 0x393446 : 0x8a9c68;
   const gridColor = state.area === "aureleaf" ? 0xd8c799 : state.area === "spiritRootCave01" ? 0x886ab0 : 0xb7a56f;
   const gridFloorColor = state.area === "aureleaf" ? 0x60664b : state.area === "spiritRootCave01" ? 0x272233 : 0x4f5c3d;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
-    new THREE.MeshStandardMaterial({ color: groundColor, roughness: 0.92 })
+    new THREE.MeshStandardMaterial({
+      color: groundColor,
+      emissive: isWorldTreeForest ? 0x41562d : 0x000000,
+      emissiveIntensity: isWorldTreeForest ? 0.18 : 0,
+      roughness: isWorldTreeForest ? 0.82 : 0.92
+    })
   );
   ground.name = "areaGround";
   ground.rotation.x = -Math.PI / 2;

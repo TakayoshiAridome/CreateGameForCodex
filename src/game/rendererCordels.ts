@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { HERO_GLB_RUN_ANIMATION_TIME_SCALE, clamp, heroStats, type GameState, type Hero } from "./core";
+import { HERO_GLB_RUN_ANIMATION_TIME_SCALE, basicAttackMotionDuration, clamp, heroStats, type GameState, type Hero } from "./core";
 import { toWorld } from "./rendererCamera";
 import { loadCachedGltf } from "./rendererGltfCache";
 import { addHealthBar } from "./rendererHealth";
@@ -28,11 +28,16 @@ const CORDELS_HEART_SABER_HAND_OFFSET = new THREE.Vector3(-0.035, 0.085, 0);
 const CORDELS_HEART_SABER_SCALED_GRIP_OFFSET = CORDELS_HEART_SABER_GRIP_POINT.clone().multiplyScalar(-CORDELS_HEART_SABER_SCALE);
 const CORDELS_HEART_SABER_SCALED_HAND_OFFSET = CORDELS_HEART_SABER_HAND_OFFSET.clone().multiplyScalar(CORDELS_HEART_SABER_SCALE);
 const CORDELS_RUN_ANIMATION_SPEED_MULTIPLIER = 1.22;
-const CORDELS_ATTACK_ANIMATION_SPEED_MULTIPLIER = 1.45;
 const CORDELS_MATERIAL_BRIGHTNESS = 1.58;
 const CORDELS_MATERIAL_EMISSIVE_INTENSITY = 0.13;
 const CORDELS_SHADOW_LIFT = 0.3;
 const CORDELS_SATURATION = 1.92;
+const CORDELS_MATERIAL_ROUGHNESS = 0.62;
+const CORDELS_MATERIAL_SPECULAR_INTENSITY = 0.22;
+const CORDELS_HEART_SABER_BRIGHTNESS = 1.68;
+const CORDELS_HEART_SABER_EMISSIVE_INTENSITY = 0.14;
+const CORDELS_HEART_SABER_SHADOW_LIFT = 0.32;
+const CORDELS_HEART_SABER_SATURATION = 2.08;
 
 let cordelsIdleModel: THREE.Group | null = null;
 let cordelsIdleClips: THREE.AnimationClip[] = [];
@@ -58,7 +63,13 @@ let cordelsHeartSaberModel: THREE.Group | null = null;
 let cordelsHeartSaberLoading = false;
 let cordelsHeartSaberFailed = false;
 
-function markSharedMaterial(material: THREE.Material) {
+function markSharedMaterial(
+  material: THREE.Material,
+  brightness = CORDELS_MATERIAL_BRIGHTNESS,
+  emissiveIntensity = CORDELS_MATERIAL_EMISSIVE_INTENSITY,
+  shadowLift = CORDELS_SHADOW_LIFT,
+  saturation = CORDELS_SATURATION
+) {
   material.userData.shared = true;
   const texturedMaterial = material as THREE.Material & Partial<Record<(typeof sharedTextureKeys)[number], THREE.Texture>>;
   for (const key of sharedTextureKeys) {
@@ -70,27 +81,36 @@ function markSharedMaterial(material: THREE.Material) {
   }
 
   const litMaterial = material as THREE.MeshStandardMaterial;
-  if (litMaterial.color) litMaterial.color.multiplyScalar(CORDELS_MATERIAL_BRIGHTNESS);
+  if (litMaterial.color) litMaterial.color.multiplyScalar(brightness);
   if (litMaterial.emissive) {
     litMaterial.emissive.set(0xffffff);
-    litMaterial.emissiveIntensity = CORDELS_MATERIAL_EMISSIVE_INTENSITY;
+    litMaterial.emissiveIntensity = emissiveIntensity;
   }
-  if (typeof litMaterial.roughness === "number") litMaterial.roughness = Math.min(Math.max(litMaterial.roughness, 0.34), 0.68);
+  if (typeof litMaterial.roughness === "number") litMaterial.roughness = CORDELS_MATERIAL_ROUGHNESS;
+  const specularMaterial = material as THREE.MeshPhysicalMaterial;
+  if (typeof specularMaterial.specularIntensity === "number") specularMaterial.specularIntensity = CORDELS_MATERIAL_SPECULAR_INTENSITY;
+  if (specularMaterial.specularColor) specularMaterial.specularColor.setScalar(0.55);
   material.onBeforeCompile = (shader) => {
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <map_fragment>",
       `#include <map_fragment>
       float cordelsLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-      diffuseColor.rgb += (1.0 - smoothstep(0.12, 0.62, cordelsLuma)) * ${CORDELS_SHADOW_LIFT.toFixed(2)};
+      diffuseColor.rgb += (1.0 - smoothstep(0.12, 0.62, cordelsLuma)) * ${shadowLift.toFixed(2)};
       float cordelsLiftedLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
-      diffuseColor.rgb = mix(vec3(cordelsLiftedLuma), diffuseColor.rgb, ${CORDELS_SATURATION.toFixed(2)});`
+      diffuseColor.rgb = mix(vec3(cordelsLiftedLuma), diffuseColor.rgb, ${saturation.toFixed(2)});`
     );
   };
-  material.customProgramCacheKey = () => `cordels-shadow-lift-${CORDELS_SHADOW_LIFT}-saturation-${CORDELS_SATURATION}`;
+  material.customProgramCacheKey = () => `cordels-brightness-${brightness}-emissive-${emissiveIntensity}-shadow-lift-${shadowLift}-saturation-${saturation}`;
   material.needsUpdate = true;
 }
 
-function markSharedObject(object: THREE.Object3D) {
+function markSharedObject(
+  object: THREE.Object3D,
+  brightness = CORDELS_MATERIAL_BRIGHTNESS,
+  emissiveIntensity = CORDELS_MATERIAL_EMISSIVE_INTENSITY,
+  shadowLift = CORDELS_SHADOW_LIFT,
+  saturation = CORDELS_SATURATION
+) {
   object.traverse((child) => {
     child.castShadow = true;
     child.receiveShadow = false;
@@ -99,9 +119,9 @@ function markSharedObject(object: THREE.Object3D) {
     if (mesh.geometry) mesh.geometry.userData.shared = true;
     const material = mesh.material;
     if (Array.isArray(material)) {
-      for (const item of material) markSharedMaterial(item);
+      for (const item of material) markSharedMaterial(item, brightness, emissiveIntensity, shadowLift, saturation);
     } else if (material) {
-      markSharedMaterial(material);
+      markSharedMaterial(material, brightness, emissiveIntensity, shadowLift, saturation);
     }
   });
 }
@@ -129,13 +149,6 @@ function normalizeCordelsHeartSaber(model: THREE.Group) {
   const box = new THREE.Box3().setFromObject(model);
   const center = box.getCenter(new THREE.Vector3());
   model.position.set(-center.x, -center.y, -center.z);
-}
-
-function removeCordelsAttackRootMotion(clips: THREE.AnimationClip[]) {
-  return clips.map((clip) => {
-    const tracks = clip.tracks.filter((track) => !track.name.startsWith("Hips.position") && !track.name.startsWith("Hips.quaternion"));
-    return new THREE.AnimationClip(clip.name, clip.duration, tracks);
-  });
 }
 
 function loadCordelsIdleModel() {
@@ -201,7 +214,7 @@ function loadCordelsAttackModel() {
   loadCachedGltf(CORDELS_ATTACK_MODEL_URL)
     .then((gltf) => {
       cordelsAttackModel = gltf.scene;
-      cordelsAttackClips = removeCordelsAttackRootMotion(gltf.animations);
+      cordelsAttackClips = gltf.animations;
       normalizeCordelsModel(cordelsAttackModel);
       markSharedObject(cordelsAttackModel);
       cordelsAttackLoading = false;
@@ -221,7 +234,13 @@ function loadCordelsHeartSaberModel() {
     .then((gltf) => {
       cordelsHeartSaberModel = gltf.scene;
       normalizeCordelsHeartSaber(cordelsHeartSaberModel);
-      markSharedObject(cordelsHeartSaberModel);
+      markSharedObject(
+        cordelsHeartSaberModel,
+        CORDELS_HEART_SABER_BRIGHTNESS,
+        CORDELS_HEART_SABER_EMISSIVE_INTENSITY,
+        CORDELS_HEART_SABER_SHADOW_LIFT,
+        CORDELS_HEART_SABER_SATURATION
+      );
       cordelsHeartSaberLoading = false;
     })
     .catch((error) => {
@@ -238,7 +257,8 @@ function createCordelsAnimatedInstance(
   source: THREE.Group | null,
   clips: THREE.AnimationClip[],
   time: number,
-  verticalOffset = 0
+  verticalOffset = 0,
+  loop = true
 ) {
   if (!source) return null;
   const clip = clips[0] ?? null;
@@ -247,14 +267,19 @@ function createCordelsAnimatedInstance(
     let mixer: THREE.AnimationMixer | null = null;
     if (clip && clip.duration > 0) {
       mixer = new THREE.AnimationMixer(model);
-      mixer.clipAction(clip).play();
+      const action = mixer.clipAction(clip);
+      if (!loop) {
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+      }
+      action.play();
     }
     instance = { model, mixer, clip, baseY: model.position.y };
     setInstance(instance);
   }
   instance.model.position.y = instance.baseY + verticalOffset;
   if (instance.mixer && instance.clip && instance.clip.duration > 0) {
-    instance.mixer.setTime(time % instance.clip.duration);
+    instance.mixer.setTime(loop ? time % instance.clip.duration : clamp(time, 0, instance.clip.duration));
   }
   return instance.model;
 }
@@ -308,6 +333,8 @@ function hasCordelsCombatStanceTarget(hero: Hero, state: GameState) {
 }
 
 function createCordelsAttackInstance(hero: Hero) {
+  const clipDuration = cordelsAttackClips[0]?.duration ?? 0;
+  const attackProgress = clamp(hero.attackTime / basicAttackMotionDuration(hero), 0, 1);
   return createCordelsAnimatedInstance(
     cordelsAttackInstance,
     (next) => {
@@ -315,8 +342,9 @@ function createCordelsAttackInstance(hero: Hero) {
     },
     loadCordelsAttackModel(),
     cordelsAttackClips,
-    hero.attackTime * heroStats(hero).attackSpeed * CORDELS_ATTACK_ANIMATION_SPEED_MULTIPLIER,
-    CORDELS_ATTACK_VERTICAL_OFFSET
+    clipDuration * attackProgress,
+    CORDELS_ATTACK_VERTICAL_OFFSET,
+    false
   );
 }
 
