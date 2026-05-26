@@ -54,7 +54,7 @@ export const areas: Record<AreaId, AreaDefinition> = {
   },
   spiritTreeForest01: {
     id: "spiritTreeForest01",
-    name: "世界樹の森01",
+    name: "精霊樹の森01",
     description: "世界樹の根元に広がる広大な探索地帯。一定数の敵が生息し、倒すとしばらくして再出現します。"
   },
   spiritRootCave01: {

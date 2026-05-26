@@ -224,7 +224,7 @@ function playableWidth(state: GameState) {
     case "spiritRootCave01":
       return Math.max(2300, state.view.w * 2.45);
     case "spiritTreeForest01":
-      return 4092;
+      return 3764.64;
   }
 }
 
@@ -235,7 +235,7 @@ function playableBottom(state: GameState) {
     case "spiritRootCave01":
       return Math.max(1420, combatBottom(state) * 2.35);
     case "spiritTreeForest01":
-      return 4092;
+      return 3764.64;
   }
 }
 
@@ -247,7 +247,7 @@ function warpPointsForArea(state: GameState): WarpPoint[] {
   switch (state.area) {
     case "aureleaf":
       return [
-        { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" }
+        { x: playableWidth(state) - 230, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" }
       ];
     case "spiritTreeForest01":
       return [
@@ -255,7 +255,7 @@ function warpPointsForArea(state: GameState): WarpPoint[] {
         { x: playableWidth(state) - 240, y: 210, target: "spiritRootCave01", label: "精霊樹の根洞1Fへ" }
       ];
     case "spiritRootCave01":
-      return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "世界樹の森01へ" }];
+      return [{ x: 210, y: playableBottom(state) - 190, target: "spiritTreeForest01", label: "精霊樹の森01へ" }];
   }
 }
 

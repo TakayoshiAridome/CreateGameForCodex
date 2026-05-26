@@ -675,7 +675,7 @@ function rebuildField(view: ThreeView, state: GameState) {
       view.field.add(fallback);
       addExpandedFieldTerrain(fallback, state);
     } else if (!modelReady) {
-      const loading = createTextSprite("世界樹の森01 読み込み中", "#d9ffd0", 0.8);
+      const loading = createTextSprite("精霊樹の森01 読み込み中", "#d9ffd0", 0.8);
       loading.name = "worldTreeForestLoading";
       loading.position.set(0, 0.9, 0);
       loading.scale.set(2.2, 0.62, 1);
