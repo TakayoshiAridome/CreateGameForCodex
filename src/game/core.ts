@@ -28,6 +28,18 @@ const WOLF_ANIMATION_SPEED = 0.032;
 const BOAR_ANIMATION_SPEED = 0.024;
 const BEAR_ANIMATION_SPEED = 0.02;
 const ENEMY_HP_MULTIPLIER = 3;
+const ENEMY_RESPAWN_DELAY = 5;
+const BOSS_RESPAWN_DELAY = 60;
+const FIXED_NORMAL_ENEMY_LIMITS: Record<AreaId, number> = {
+  aureleaf: 0,
+  spiritTreeForest01: 18,
+  spiritRootCave01: 14
+};
+const FIXED_BOSS_ENEMY_LIMITS: Record<AreaId, number> = {
+  aureleaf: 0,
+  spiritTreeForest01: 1,
+  spiritRootCave01: 1
+};
 type ForestEnemyType = "wolf" | "boar" | "bear";
 
 function createGameState(): GameState {
@@ -69,6 +81,7 @@ function createGameState(): GameState {
     inventory: [],
     consumables: [],
     enemies: [],
+    enemyRespawns: [],
     particles: [],
     logs: ["アウレリーフ中央広場から出撃準備。"],
     status: "アウレリーフ中央から開始。クリック/WASDで移動、1-4で家門メンバーを選択してください。"
@@ -184,6 +197,7 @@ function recoverAtTown(state: GameState, penalty = false) {
   state.area = "aureleaf";
   state.paused = false;
   state.enemies = [];
+  state.enemyRespawns = [];
   state.particles = [];
   state.targetPoint = null;
   state.spawnTimer = 1.1;
@@ -333,6 +347,7 @@ function changeAreaState(state: GameState, area: AreaId) {
   const fromArea = state.area;
   state.area = area;
   state.enemies = [];
+  state.enemyRespawns = [];
   state.particles = [];
   state.targetPoint = null;
   state.spawnTimer = area === "spiritRootCave01" ? 0.65 : 1.1;
@@ -350,6 +365,7 @@ function changeAreaState(state: GameState, area: AreaId) {
     movePartyToAreaEntry(state, fromArea);
     clearMovement(state);
   }
+  fillFixedEnemyPopulation(state);
   return true;
 }
 
@@ -606,6 +622,18 @@ function scaledEnemyHp(hp: number) {
   return Math.round(hp * ENEMY_HP_MULTIPLIER);
 }
 
+function normalEnemyLimit(area: AreaId) {
+  return FIXED_NORMAL_ENEMY_LIMITS[area];
+}
+
+function bossEnemyLimit(area: AreaId) {
+  return FIXED_BOSS_ENEMY_LIMITS[area];
+}
+
+function liveEnemyCount(state: GameState, boss: boolean) {
+  return state.enemies.filter((enemy) => enemy.hp > 0 && (enemy.type === "boss") === boss).length;
+}
+
 function spawnEnemy(state: GameState, boss = false) {
   if (state.area === "aureleaf") return;
   const point = randomSpawnPoint(state);
@@ -648,6 +676,49 @@ function spawnEnemy(state: GameState, boss = false) {
     life: 1.1
   });
   if (boss) addLog(state, `Boss ${state.bossCount + 1} が出現。`);
+}
+
+function spawnFixedEnemy(state: GameState, boss = false) {
+  spawnEnemy(state, boss);
+  if (boss) state.bossCount += 1;
+}
+
+function fillFixedEnemyPopulation(state: GameState) {
+  if (state.area === "aureleaf") return;
+  while (liveEnemyCount(state, false) < normalEnemyLimit(state.area)) {
+    spawnFixedEnemy(state, false);
+  }
+  while (liveEnemyCount(state, true) < bossEnemyLimit(state.area)) {
+    spawnFixedEnemy(state, true);
+  }
+}
+
+function scheduleEnemyRespawns(state: GameState, defeatedEnemies: Enemy[]) {
+  if (state.area === "aureleaf") return;
+  for (const enemy of defeatedEnemies) {
+    const boss = enemy.type === "boss";
+    state.enemyRespawns.push({ timer: boss ? BOSS_RESPAWN_DELAY : ENEMY_RESPAWN_DELAY, boss });
+  }
+}
+
+function updateFixedEnemyRespawns(state: GameState, dt: number) {
+  if (state.area === "aureleaf") {
+    state.enemyRespawns = [];
+    return;
+  }
+  const waiting = [];
+  for (const respawn of state.enemyRespawns) {
+    const next = { ...respawn, timer: respawn.timer - dt };
+    if (next.timer > 0) {
+      waiting.push(next);
+      continue;
+    }
+    const limit = next.boss ? bossEnemyLimit(state.area) : normalEnemyLimit(state.area);
+    if (liveEnemyCount(state, next.boss) < limit) {
+      spawnFixedEnemy(state, next.boss);
+    }
+  }
+  state.enemyRespawns = waiting;
 }
 
 function randomBeastWanderTarget(state: GameState, enemy: Enemy) {
@@ -1134,18 +1205,7 @@ function updateGame(state: GameState, dt: number) {
     return;
   }
 
-  const area = currentArea(state);
-  state.spawnTimer -= dt * area.spawnRate;
-  state.bossTimer -= dt;
-  if (state.spawnTimer <= 0) {
-    spawnEnemy(state);
-    state.spawnTimer = 0.75 + Math.random() * Math.max(0.55, 1.9 - Math.min(1, state.score / 2500));
-  }
-  if (state.bossTimer <= 0) {
-    spawnEnemy(state, true);
-    state.bossCount += 1;
-    state.bossTimer = Math.max(14, area.bossInterval + 14 - state.bossCount * 2);
-  }
+  updateFixedEnemyRespawns(state, dt);
 
   if (!state.targetPoint && !keyboardMoved) keepFormationDuringCombat(state, dt);
 
@@ -1210,6 +1270,7 @@ function updateGame(state: GameState, dt: number) {
   state.enemies = state.enemies.filter((enemy) => enemy.hp > 0);
   const defeated = before - state.enemies.length;
   if (defeated > 0) {
+    scheduleEnemyRespawns(state, defeatedEnemies);
     state.score += defeatedScore;
     state.gold += droppedGold;
     grantPartyExp(state, gainedExp);
@@ -1447,6 +1508,7 @@ class GameEngine {
     const fromArea = this.state.area;
     this.state.area = area;
     this.state.enemies = [];
+    this.state.enemyRespawns = [];
     this.state.particles = [];
     this.state.targetPoint = null;
     this.state.spawnTimer = area === "spiritRootCave01" ? 0.65 : 1.1;
@@ -1463,6 +1525,7 @@ class GameEngine {
     if ((fromArea === "aureleaf" && area === "spiritTreeForest01") || (fromArea === "spiritTreeForest01" && area === "aureleaf")) {
       movePartyToAreaEntry(this.state, fromArea);
     }
+    fillFixedEnemyPopulation(this.state);
   }
 
   setMovement(key: string, pressed: boolean) {

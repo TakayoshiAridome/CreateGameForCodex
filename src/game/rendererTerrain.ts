@@ -26,7 +26,7 @@ let grass03Failed = false;
 let grass04Model: THREE.Group | null = null;
 let grass04Failed = false;
 
-function markSharedTerrainObject(object: THREE.Object3D, brightness = 1.18, emissiveIntensity = 0.08) {
+function markSharedTerrainObject(object: THREE.Object3D, brightness = 1.18, emissiveIntensity = 0.08, saturation = 1, shadowLift = 0) {
   object.traverse((child) => {
     child.castShadow = true;
     child.receiveShadow = true;
@@ -44,6 +44,19 @@ function markSharedTerrainObject(object: THREE.Object3D, brightness = 1.18, emis
       if (litMaterial.emissive) {
         litMaterial.emissive.set(0x27381c);
         litMaterial.emissiveIntensity = emissiveIntensity;
+      }
+      if (saturation !== 1 || shadowLift > 0) {
+        material.onBeforeCompile = (shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            "#include <map_fragment>",
+            `#include <map_fragment>
+      float terrainLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+      diffuseColor.rgb += (1.0 - smoothstep(0.10, 0.68, terrainLuma)) * ${shadowLift.toFixed(2)};
+      float terrainLiftedLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+      diffuseColor.rgb = mix(vec3(terrainLiftedLuma), diffuseColor.rgb, ${saturation.toFixed(2)});`
+          );
+        };
+        material.customProgramCacheKey = () => `terrain-bright-${brightness}-emissive-${emissiveIntensity}-saturation-${saturation}-shadow-${shadowLift}`;
       }
       for (const key of sharedTextureKeys) {
         const texture = texturedMaterial[key];
@@ -357,7 +370,7 @@ function addWorldTreeForestModel(group: THREE.Group, state: GameState, width: nu
   loadCachedGltf(WORLD_TREE_FOREST_MODEL_URL)
     .then((gltf) => {
       worldTreeForestModel = gltf.scene;
-      markSharedTerrainObject(worldTreeForestModel, 2.35, 0.42);
+      markSharedTerrainObject(worldTreeForestModel, 2.92, 0.48, 1.38, 0.04);
       addLoadedModel();
     })
     .catch((error) => {

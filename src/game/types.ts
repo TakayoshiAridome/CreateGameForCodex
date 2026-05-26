@@ -115,6 +115,11 @@ export type Enemy = Point & {
   wanderTimer?: number;
 };
 
+export type EnemyRespawnEntry = {
+  timer: number;
+  boss: boolean;
+};
+
 export type Particle = Point & {
   text: string;
   color: string;
@@ -180,6 +185,7 @@ export type GameState = {
   inventory: Equipment[];
   consumables: ConsumableStack[];
   enemies: Enemy[];
+  enemyRespawns: EnemyRespawnEntry[];
   particles: Particle[];
   logs: string[];
   status: string;
