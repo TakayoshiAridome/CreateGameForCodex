@@ -224,7 +224,7 @@ function playableWidth(state: GameState) {
     case "spiritRootCave01":
       return Math.max(2300, state.view.w * 2.45);
     case "spiritTreeForest01":
-      return 3764.64;
+      return 4096;
   }
 }
 
@@ -235,7 +235,7 @@ function playableBottom(state: GameState) {
     case "spiritRootCave01":
       return Math.max(1420, combatBottom(state) * 2.35);
     case "spiritTreeForest01":
-      return 3764.64;
+      return 4096;
   }
 }
 

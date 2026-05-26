@@ -76,7 +76,7 @@ function createWorldTreeForestInstance(width: number, depth: number) {
   model.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
-  const scale = Math.min((width * 0.92) / Math.max(size.x, 0.001), (depth * 0.92) / Math.max(size.z, 0.001));
+  const scale = Math.min(width / Math.max(size.x, 0.001), depth / Math.max(size.z, 0.001));
   const center = box.getCenter(new THREE.Vector3());
   const horizontalScale = Number.isFinite(scale) ? scale : 1;
   const verticalScale = horizontalScale * 0.045;
