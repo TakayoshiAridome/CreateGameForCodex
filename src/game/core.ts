@@ -120,7 +120,7 @@ function heroStats(hero: Hero) {
   const primaryAttack = hero.weapon === "staff" || hero.weapon === "scout" ? magicAttack : physicalAttack;
   return {
     attack: primaryAttack,
-    maxHp: hero.maxHp + bonus.maxHp + attributeHp + levelBonus * 18,
+    maxHp: hero.baseHp + bonus.maxHp + attributeHp + levelBonus * 18,
     maxMp: hero.maxMp + bonus.maxMp + attributeMp + levelBonus * 7,
     range: hero.range + bonus.range + Math.floor(levelBonus / 3) * 4,
     speed: HERO_SHARED_MOVEMENT_SPEED,

@@ -84,7 +84,7 @@ export type Hero = Point & {
   dex: number;
   men: number;
   hp: number;
-  maxHp: number;
+  baseHp: number;
   mp: number;
   maxMp: number;
   range: number;
